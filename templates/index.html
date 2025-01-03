@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpecGen - AI-Powered Project Documentation Generator</title>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .dark {
+            color-scheme: dark;
+        }
+        [x-cloak] { display: none !important; }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .animate-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .animate-spin {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+        .animate-bounce {
+            animation: bounce 1s infinite;
+        }
+
+        /* Add padding to all text inputs and textareas */
+        input[type="text"], 
+        input[type="password"], 
+        textarea {
+            padding: 0.75rem !important;
+        }
+
+        /* Tooltip styles */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip .tooltip-text {
+            visibility: hidden;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 250px;
+            padding: 8px;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 0.875rem;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        /* Thinking animation dots */
+        .thinking-dots span {
+            width: 8px;
+            height: 8px;
+            margin: 0 2px;
+            background-color: currentColor;
+            border-radius: 50%;
+            display: inline-block;
+            animation: thinking 1.4s infinite;
+        }
+
+        .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes thinking {
+            0%, 80%, 100% { transform: scale(0); opacity: 0.5; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="min-h-screen transition-colors duration-200" 
+      x-data="wizardData()" 
+      :class="{ 'dark bg-gray-900': darkMode, 'bg-gray-100': !darkMode }">
+    
+    <div class="container mx-auto px-4 py-8 max-w-3xl">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold transition-colors duration-200" :class="{ 'text-white': darkMode, 'text-gray-800': !darkMode }">
+                <span class="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500">SpecGen</span>
+            </h1>
+            <button @click="darkMode = !darkMode; localStorage.setItem('darkMode', darkMode)" 
+                    class="p-2 rounded-lg transition-colors duration-200"
+                    :class="{ 'bg-gray-700 text-white hover:bg-gray-600': darkMode, 'bg-gray-200 text-gray-800 hover:bg-gray-300': !darkMode }">
+                <span x-show="!darkMode" x-cloak>🌙</span>
+                <span x-show="darkMode" x-cloak>☀️</span>
+            </button>
+        </div>
+
+        <!-- Main Content -->
+        <div class="transition-colors duration-200" :class="{ 'bg-gray-800 text-white': darkMode, 'bg-white text-gray-800': !darkMode }">
+            <div id="wizard" class="space-y-6 rounded-lg shadow-lg p-6">
+                <!-- Progress Steps -->
+                <div class="flex justify-between mb-8">
+                    <div class="flex items-center" :class="{ 'text-blue-500': currentStep >= 1, 'text-gray-400': currentStep < 1 }">
+                        <div class="rounded-full transition-colors duration-200 flex items-center justify-center h-8 w-8 border-2 mr-2"
+                             :class="{ 'border-blue-500': currentStep >= 1, 'border-gray-400': currentStep < 1 }">1</div>
+                        <span class="text-sm">Choose LLM</span>
+                    </div>
+                    <div class="flex items-center" :class="{ 'text-blue-500': currentStep >= 2, 'text-gray-400': currentStep < 2 }">
+                        <div class="rounded-full transition-colors duration-200 flex items-center justify-center h-8 w-8 border-2 mr-2"
+                             :class="{ 'border-blue-500': currentStep >= 2, 'border-gray-400': currentStep < 2 }">2</div>
+                        <span class="text-sm">Problem</span>
+                    </div>
+                    <div class="flex items-center" :class="{ 'text-blue-500': currentStep >= 3, 'text-gray-400': currentStep < 3 }">
+                        <div class="rounded-full transition-colors duration-200 flex items-center justify-center h-8 w-8 border-2 mr-2"
+                             :class="{ 'border-blue-500': currentStep >= 3, 'border-gray-400': currentStep < 3 }">3</div>
+                        <span class="text-sm">Details</span>
+                    </div>
+                    <div class="flex items-center" :class="{ 'text-blue-500': currentStep >= 4, 'text-gray-400': currentStep < 4 }">
+                        <div class="rounded-full transition-colors duration-200 flex items-center justify-center h-8 w-8 border-2 mr-2"
+                             :class="{ 'border-blue-500': currentStep >= 4, 'border-gray-400': currentStep < 4 }">4</div>
+                        <span class="text-sm">Generate</span>
+                    </div>
+                </div>
+
+                <!-- Step 1: API Key -->
+                <div x-show="currentStep === 1" class="space-y-6">
+                    <div class="flex items-center justify-center">
+                        <div class="w-full max-w-2xl">
+                            <div class="relative">
+                                <div class="absolute inset-0 flex items-center" aria-hidden="true">
+                                    <div class="w-full border-t" :class="{ 'border-gray-600': darkMode, 'border-gray-300': !darkMode }"></div>
+                                </div>
+                                <div class="relative flex justify-center text-sm">
+                                    <span class="px-2 text-sm" :class="{ 'bg-gray-800 text-gray-300': darkMode, 'bg-white text-gray-500': !darkMode }">
+                                        Choose Your AI Model
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Gemini Option -->
+                            <div class="mt-6 mb-8 p-4 rounded-lg transition-colors duration-200" 
+                                 :class="{ 'bg-gray-700': darkMode, 'bg-gray-100': !darkMode }">
+                                <div class="flex items-center justify-between mb-4">
+                                    <div>
+                                        <h3 class="text-lg font-medium">Google Gemini (Free)</h3>
+                                        <p class="text-sm mt-1" :class="{ 'text-gray-300': darkMode, 'text-gray-600': !darkMode }">
+                                            Get started quickly with Google's free tier
+                                        </p>
+                                    </div>
+                                    <button @click="useGemini()"
+                                            class="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                                        Use Gemini
+                                    </button>
+                                </div>
+                                <div class="text-sm" :class="{ 'text-gray-300': darkMode, 'text-gray-600': !darkMode }">
+                                    ✓ No API key needed<br>
+                                    ✓ Good quality output<br>
+                                    ✓ Generous rate limits
+                                </div>
+                            </div>
+
+                            <div class="relative">
+                                <div class="absolute inset-0 flex items-center" aria-hidden="true">
+                                    <div class="w-full border-t" :class="{ 'border-gray-600': darkMode, 'border-gray-300': !darkMode }"></div>
+                                </div>
+                                <div class="relative flex justify-center text-sm">
+                                    <span class="px-2 text-sm" :class="{ 'bg-gray-800 text-gray-300': darkMode, 'bg-white text-gray-500': !darkMode }">
+                                        OR
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Claude Option -->
+                            <div class="mt-8 p-4 rounded-lg transition-colors duration-200" 
+                                 :class="{ 'bg-gray-700': darkMode, 'bg-gray-100': !darkMode }">
+                                <div class="mb-4">
+                                    <h3 class="text-lg font-medium">Anthropic Claude (Premium)</h3>
+                                    <p class="text-sm mt-1" :class="{ 'text-gray-300': darkMode, 'text-gray-600': !darkMode }">
+                                        Use your own Claude API key for premium quality
+                                    </p>
+                                </div>
+                                <div class="flex space-x-2">
+                                    <input type="password" 
+                                           id="api-key" 
+                                           class="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 transition-colors duration-200"
+                                           :class="{ 'bg-gray-600 text-white': darkMode, 'bg-white': !darkMode }"
+                                           placeholder="sk-ant-...">
+                                    <button @click="validateApiKey()"
+                                            id="validate-btn"
+                                            class="px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                                        Validate
+                                    </button>
+                                </div>
+                                <p id="api-status" class="mt-2 text-sm"></p>
+                                <div class="mt-4 text-sm" :class="{ 'text-gray-300': darkMode, 'text-gray-600': !darkMode }">
+                                    ✓ Highest quality output<br>
+                                    ✓ Better context understanding<br>
+                                    ✓ More consistent results
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Problem/Solution -->
+                <div x-show="currentStep === 2" class="space-y-4">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-lg font-medium mb-2">What problem are you trying to solve?</label>
+                            <textarea x-model="problem"
+                                    rows="4"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 transition-colors duration-200"
+                                    :class="{ 'bg-gray-600 text-white': darkMode, 'bg-white': !darkMode }"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-lg font-medium mb-2">Do you have a solution in mind? (Optional)</label>
+                            <textarea x-model="solution"
+                                    rows="4"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 transition-colors duration-200"
+                                    :class="{ 'bg-gray-600 text-white': darkMode, 'bg-white': !darkMode }"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Follow-up Questions -->
+                <div x-show="currentStep === 3" class="space-y-4">
+                    <template x-for="question in followUpQuestions" :key="question.id">
+                        <div class="space-y-2">
+                            <label class="block text-lg font-medium" x-text="question.question"></label>
+                            <textarea x-model="followUpAnswers[question.id]"
+                                    rows="3"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 transition-colors duration-200"
+                                    :class="{ 'bg-gray-600 text-white': darkMode, 'bg-white': !darkMode }"></textarea>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Step 4: Document Selection -->
+                <div x-show="currentStep === 4" class="space-y-4">
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-medium">Select Documents to Generate</h3>
+                            <div class="flex space-x-2">
+                                <button @click="selectRecommendedOnly()"
+                                        class="px-3 py-1 rounded-md text-sm transition-colors duration-200"
+                                        :class="{ 'bg-gray-600 text-white hover:bg-gray-500': darkMode, 'bg-gray-200 text-gray-800 hover:bg-gray-300': !darkMode }">
+                                    Select Recommended
+                                </button>
+                                <button @click="toggleAllDocs()"
+                                        class="px-3 py-1 rounded-md text-sm transition-colors duration-200"
+                                        :class="{ 'bg-gray-600 text-white hover:bg-gray-500': darkMode, 'bg-gray-200 text-gray-800 hover:bg-gray-300': !darkMode }">
+                                    <span x-text="allDocsSelected ? 'Deselect All' : 'Select All'"></span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="space-y-4">
+                            {% for doc in documents %}
+                            <div class="flex flex-col space-y-2 p-4 rounded-lg transition-colors duration-200"
+                                 :class="{ 'bg-gray-700': darkMode, 'bg-gray-100': !darkMode }">
+                                <div class="flex items-start justify-between">
+                                    <div class="flex items-start flex-1">
+                                        <input type="checkbox" 
+                                               id="doc-{{ doc.id }}" 
+                                               name="selected_docs" 
+                                               value="{{ doc.id }}"
+                                               class="mt-1 rounded"
+                                               :checked="recommendedDocs.includes('{{ doc.id }}')">
+                                        <label for="doc-{{ doc.id }}" class="ml-2 flex-1">
+                                            <div class="flex items-center">
+                                                <span class="font-medium">{{ doc.name }}</span>
+                                                <div class="tooltip ml-2">
+                                                    <svg class="w-4 h-4 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M12 21a9 9 0 100-18 9 9 0 000 18z" />
+                                                    </svg>
+                                                    <span class="tooltip-text" :class="{ 'bg-gray-700 text-white': darkMode, 'bg-white text-gray-800 shadow-lg': !darkMode }">
+                                                        {% if doc.id == 'cursorrules' %}
+                                                            Configuration file for editor settings, code formatting rules, and project-specific IDE preferences. Helps maintain consistent coding standards across the team.
+                                                        {% elif doc.id == 'prd' %}
+                                                            Comprehensive document outlining project goals, requirements, features, and success criteria. Essential for aligning stakeholders and guiding development.
+                                                        {% elif doc.id == 'app_flow' %}
+                                                            Visual and textual documentation of user journeys, workflows, and interactions. Helps understand how users will navigate and use the application.
+                                                        {% elif doc.id == 'tech_stack' %}
+                                                            Detailed breakdown of technologies, frameworks, and dependencies used in the project. Includes version requirements and integration details.
+                                                        {% elif doc.id == 'frontend' %}
+                                                            Documentation of UI architecture, component structure, state management, and styling guidelines. Essential for frontend development consistency.
+                                                        {% elif doc.id == 'schema' %}
+                                                            Database schema design, data models, relationships, and constraints. Critical for data-driven applications and maintaining data integrity.
+                                                        {% elif doc.id == 'api' %}
+                                                            API endpoints, request/response formats, authentication, and integration guidelines. Essential for service communication and third-party integration.
+                                                        {% elif doc.id == 'system_prompts' %}
+                                                            AI integration documentation, prompt templates, and best practices for AI features. Important for maintaining consistent AI interactions.
+                                                        {% elif doc.id == 'deployment' %}
+                                                            Infrastructure setup, deployment procedures, and environment configurations. Essential for reliable application deployment and maintenance.
+                                                        {% elif doc.id == 'security' %}
+                                                            Security protocols, best practices, compliance requirements, and risk mitigation strategies. Critical for protecting application and user data.
+                                                        {% elif doc.id == 'testing' %}
+                                                            Testing strategies, test cases, QA procedures, and quality standards. Essential for maintaining reliable and bug-free applications.
+                                                        {% endif %}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <p class="text-sm" :class="{ 'text-gray-400': darkMode, 'text-gray-500': !darkMode }">{{ doc.description }}</p>
+                                        </label>
+                                    </div>
+                                    <div x-show="recommendedDocs.includes('{{ doc.id }}')" 
+                                         class="ml-2 text-green-500 flex items-center space-x-1"
+                                         title="Recommended for this project">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                        </svg>
+                                        <span class="text-sm font-medium">Recommended</span>
+                                    </div>
+                                </div>
+                                <div class="ml-6">
+                                    <input type="text" 
+                                           id="opt-{{ doc.id }}"
+                                           placeholder="{{ doc.optional_prompt }}"
+                                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm transition-colors duration-200"
+                                           :class="{ 'bg-gray-600 text-white': darkMode, 'bg-white': !darkMode }">
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <div class="mt-6">
+                            <label class="block text-lg font-medium mb-2">Additional Notes (Optional)</label>
+                            <textarea x-model="finalNotes"
+                                    rows="4"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 transition-colors duration-200"
+                                    :class="{ 'bg-gray-600 text-white': darkMode, 'bg-white': !darkMode }"
+                                    placeholder="Any final thoughts or requirements?"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Navigation Buttons -->
+                <div class="flex justify-between pt-4">
+                    <button x-show="currentStep > 1"
+                            @click="currentStep--"
+                            class="px-4 py-2 rounded-md transition-colors duration-200"
+                            :class="{ 'bg-gray-600 text-white hover:bg-gray-500': darkMode, 'bg-gray-500 text-white hover:bg-gray-600': !darkMode }">
+                        Previous
+                    </button>
+                    <button x-show="currentStep < 4"
+                            @click="handleNext()"
+                            class="px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                        Next
+                    </button>
+                    <button x-show="currentStep === 4"
+                            @click="generateDocs()"
+                            class="px-4 py-2 rounded-md bg-green-500 text-white hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                        Generate Documentation
+                    </button>
+                </div>
+
+                <!-- Generation Progress -->
+                <div x-show="isLoading && (currentStep === 2 || currentStep === 3)" 
+                     class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-8 text-center max-w-sm">
+                        <div class="flex flex-col items-center space-y-4">
+                            <div class="mb-4">
+                                <span class="text-3xl">🤔</span>
+                            </div>
+                            <p class="text-lg font-medium mb-2" :class="{ 'text-black': darkMode, 'text-gray-800': !darkMode }">
+                                Thinking, just a moment...
+                            </p>
+                            <div class="thinking-dots" :class="{ 'text-blue-500': !darkMode, 'text-blue-400': darkMode }">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="generation-progress" 
+                     class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+                     x-show="(isLoading && currentStep === 4) || generationComplete">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-8 text-center max-w-sm">
+                        <div class="flex flex-col items-center space-y-6">
+                            <!-- Loading Animation -->
+                            <template x-if="isLoading">
+                                <div class="space-y-6">
+                                    <div class="flex flex-col items-center space-y-4">
+                                        <div class="relative w-16 h-16">
+                                            <div class="absolute inset-0 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
+                                        </div>
+                                        <span class="text-4xl">📝</span>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <p class="text-lg font-medium" :class="{ 'text-black': darkMode, 'text-gray-800': !darkMode }">
+                                            Generating Documentation...
+                                        </p>
+                                        <div class="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
+                                            <div class="bg-blue-500 h-2 rounded-full transition-all duration-500"
+                                                 :style="'width: ' + (completedFiles / totalFiles * 100) + '%'"></div>
+                                        </div>
+                                        <p class="text-sm" :class="{ 'text-gray-400': darkMode, 'text-gray-600': !darkMode }">
+                                            <span x-text="completedFiles"></span> of <span x-text="totalFiles"></span> files completed
+                                        </p>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <!-- Success Message -->
+                            <template x-if="generationComplete">
+                                <div class="space-y-4">
+                                    <div class="text-green-500">
+                                        <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                        </svg>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <p class="text-lg font-medium" :class="{ 'text-black': darkMode, 'text-gray-800': !darkMode }">
+                                            Documentation Generated Successfully!
+                                        </p>
+                                        <p class="text-sm" :class="{ 'text-gray-400': darkMode, 'text-gray-600': !darkMode }">
+                                            Your files have been downloaded.
+                                        </p>
+                                        <button @click="downloadAgain()"
+                                                class="mt-4 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                                            Download Again
+                                        </button>
+                                        <button @click="generationComplete = false"
+                                                class="mt-2 px-4 py-2 text-gray-600 hover:text-gray-800 focus:outline-none">
+                                            Close
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Cookie helper functions
+        function setCookie(name, value, days) {
+            const d = new Date();
+            d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
+            const expires = "expires=" + d.toUTCString();
+            document.cookie = name + "=" + value + ";" + expires + ";path=/;SameSite=Strict";
+        }
+
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return null;
+        }
+
+        function wizardData() {
+            return {
+                darkMode: localStorage.getItem('darkMode') === 'true' || false,
+                currentStep: 1,
+                apiKeyValidated: false,
+                usingGemini: false,
+                problem: '',
+                solution: '',
+                followUpQuestions: [],
+                followUpAnswers: {},
+                finalNotes: '',
+                isLoading: false,
+                recommendedDocs: [],
+                allDocsSelected: false,
+                generatedFile: null,
+                generationComplete: false,
+                currentlyGenerating: '',
+                totalFiles: 0,
+                completedFiles: 0,
+
+                init() {
+                    // Initialize dark mode from localStorage with default to light mode
+                    this.darkMode = localStorage.getItem('darkMode') === 'true' || false;
+                    
+                    // Watch for dark mode changes
+                    this.$watch('darkMode', value => {
+                        localStorage.setItem('darkMode', value);
+                    });
+
+                    // Load saved API key if exists
+                    const savedApiKey = getCookie('claude_api_key');
+                    if (savedApiKey) {
+                        document.getElementById('api-key').value = savedApiKey;
+                        this.validateApiKey(); // Automatically validate the saved key
+                    }
+                },
+
+                useGemini() {
+                    this.usingGemini = true;
+                    this.apiKeyValidated = true;
+                    const statusEl = document.getElementById('api-status');
+                    statusEl.textContent = '✅ Using Gemini (Free Tier)';
+                    statusEl.className = 'mt-2 text-sm text-green-500';
+                    
+                    // Set a special API key value to indicate Gemini usage
+                    const apiKeyInput = document.getElementById('api-key');
+                    apiKeyInput.value = 'USING_GEMINI';
+                    apiKeyInput.style.display = 'none';
+                    
+                    // Hide the validate button
+                    const validateBtn = document.getElementById('validate-btn');
+                    validateBtn.style.display = 'none';
+                    
+                    // Automatically proceed to next step
+                    this.currentStep++;
+                },
+
+                async validateApiKey() {
+                    if (this.usingGemini) return; // Skip validation if using Gemini
+
+                    const apiKey = document.getElementById('api-key').value;
+                    const validateBtn = document.getElementById('validate-btn');
+                    const statusEl = document.getElementById('api-status');
+
+                    validateBtn.disabled = true;
+                    validateBtn.textContent = 'Validating...';
+                    statusEl.textContent = '';
+
+                    try {
+                        const response = await fetch('/validate-api-key', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ api_key: apiKey })
+                        });
+
+                        const data = await response.json();
+                        if (data.valid) {
+                            statusEl.textContent = '✅ API key is valid';
+                            statusEl.className = 'mt-2 text-sm text-green-500';
+                            this.apiKeyValidated = true;
+                            // Save the API key in a cookie for 30 days
+                            setCookie('claude_api_key', apiKey, 30);
+                        } else {
+                            statusEl.textContent = `❌ ${data.error || 'Invalid API key'}`;
+                            statusEl.className = 'mt-2 text-sm text-red-500';
+                            this.apiKeyValidated = false;
+                        }
+                    } catch (error) {
+                        statusEl.textContent = '❌ Error validating API key';
+                        statusEl.className = 'mt-2 text-sm text-red-500';
+                        this.apiKeyValidated = false;
+                    } finally {
+                        validateBtn.disabled = false;
+                        validateBtn.textContent = 'Validate';
+                    }
+                },
+
+                toggleAllDocs() {
+                    this.allDocsSelected = !this.allDocsSelected;
+                    document.querySelectorAll('input[name="selected_docs"]').forEach(checkbox => {
+                        checkbox.checked = this.allDocsSelected;
+                    });
+                },
+
+                selectRecommendedOnly() {
+                    document.querySelectorAll('input[name="selected_docs"]').forEach(checkbox => {
+                        checkbox.checked = this.recommendedDocs.includes(checkbox.value);
+                    });
+                    this.allDocsSelected = false;
+                },
+
+                async handleNext() {
+                    if (this.currentStep === 1 && !this.apiKeyValidated) {
+                        alert('Please validate your API key first');
+                        return;
+                    }
+
+                    if (this.currentStep === 2) {
+                        if (!this.problem.trim()) {
+                            alert('Please describe the problem you are trying to solve');
+                            return;
+                        }
+
+                        this.isLoading = true;
+                        // Get follow-up questions
+                        try {
+                            const response = await fetch('/get-follow-up', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    problem: this.problem,
+                                    solution: this.solution,
+                                    api_key: document.getElementById('api-key').value,
+                                    using_gemini: this.usingGemini
+                                })
+                            });
+
+                            const data = await response.json();
+                            if (response.ok) {
+                                this.followUpQuestions = data.questions;
+                                this.recommendedDocs = data.recommended_docs;
+                            } else {
+                                alert(data.error || 'Error getting follow-up questions');
+                                return;
+                            }
+                        } catch (error) {
+                            console.error('Error:', error);
+                            alert('Error getting follow-up questions');
+                            return;
+                        } finally {
+                            this.isLoading = false;
+                        }
+                    }
+
+                    if (this.currentStep === 3) {
+                        this.isLoading = true;
+                        try {
+                            const response = await fetch('/get-follow-up', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    problem: this.problem,
+                                    solution: this.solution,
+                                    follow_up_answers: this.followUpAnswers,
+                                    api_key: document.getElementById('api-key').value,
+                                    using_gemini: this.usingGemini
+                                })
+                            });
+
+                            const data = await response.json();
+                            if (response.ok) {
+                                this.recommendedDocs = data.recommended_docs;
+                                // Auto-select recommended documents
+                                this.$nextTick(() => {
+                                    this.selectRecommendedOnly();
+                                });
+                            } else {
+                                alert(data.error || 'Error analyzing project requirements');
+                                return;
+                            }
+                        } catch (error) {
+                            console.error('Error:', error);
+                            alert('Error analyzing project requirements');
+                            return;
+                        } finally {
+                            this.isLoading = false;
+                        }
+                    }
+
+                    this.currentStep++;
+                },
+
+                async generateDocs() {
+                    if (this.isLoading) {
+                        console.log('Generation already in progress');
+                        return;
+                    }
+
+                    const selectedDocs = Array.from(document.querySelectorAll('input[name="selected_docs"]:checked')).map(cb => ({
+                        id: cb.value,
+                        optional_input: document.getElementById(`opt-${cb.value}`).value
+                    }));
+
+                    if (selectedDocs.length === 0) {
+                        alert('Please select at least one document to generate');
+                        return;
+                    }
+
+                    this.isLoading = true;
+                    this.generationComplete = false;
+                    this.totalFiles = selectedDocs.length;
+                    this.completedFiles = 0;
+                    document.getElementById('generation-progress').classList.remove('hidden');
+                    let eventSource = null;
+
+                    try {
+                        // First, store the generation data
+                        const generationData = {
+                            problem: this.problem,
+                            solution: this.solution,
+                            follow_up_answers: this.followUpAnswers,
+                            selected_docs: selectedDocs,
+                            final_notes: this.finalNotes,
+                            api_key: document.getElementById('api-key').value,
+                            using_gemini: this.usingGemini
+                        };
+
+                        const storeResponse = await fetch('/store-generation-data', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(generationData)
+                        });
+
+                        if (!storeResponse.ok) {
+                            throw new Error('Failed to store generation data');
+                        }
+
+                        // Then start SSE connection for progress updates
+                        const queryParams = new URLSearchParams({
+                            problem: this.problem,
+                            solution: this.solution,
+                            follow_up_answers: JSON.stringify(this.followUpAnswers),
+                            selected_docs: JSON.stringify(selectedDocs),
+                            final_notes: this.finalNotes,
+                            api_key: document.getElementById('api-key').value,
+                            using_gemini: this.usingGemini
+                        });
+
+                        eventSource = new EventSource(`/generate-progress/stream?${queryParams}`);
+                        let hasError = false;
+
+                        eventSource.onmessage = async (event) => {
+                            const data = JSON.parse(event.data);
+                            
+                            if (data.error || (data.status === 'error' && data.message)) {
+                                hasError = true;
+                                const errorMessage = data.error || data.message;
+                                alert(errorMessage);
+                                eventSource.close();
+                                this.isLoading = false;
+                                // If it's a credit balance error, disable the generate button
+                                if (errorMessage.toLowerCase().includes('credit balance')) {
+                                    this.apiKeyValidated = false;
+                                    const statusEl = document.getElementById('api-status');
+                                    statusEl.textContent = '❌ ' + errorMessage;
+                                    statusEl.className = 'mt-2 text-sm text-red-500';
+                                }
+                                return;
+                            }
+
+                            if (data.status === 'progress') {
+                                this.completedFiles = data.completed;
+                                this.currentlyGenerating = data.current_file;
+                            } else if (data.status === 'complete') {
+                                eventSource.close();
+                                
+                                // All documents generated, create and download zip
+                                const response = await fetch('/generate', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify(generationData)
+                                });
+
+                                if (response.ok) {
+                                    const blob = await response.blob();
+                                    this.generatedFile = blob;
+                                    const url = window.URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = 'project_docs.zip';
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    window.URL.revokeObjectURL(url);
+                                    a.remove();
+                                    this.generationComplete = true;
+                                } else {
+                                    const error = await response.json();
+                                    alert(error.error || 'Error generating documentation');
+                                }
+                                this.isLoading = false;
+                            }
+                        };
+
+                        eventSource.onerror = (error) => {
+                            console.error('EventSource error:', error);
+                            if (!hasError) {
+                                alert('Error generating documentation. Please try again.');
+                            }
+                            eventSource.close();
+                            this.isLoading = false;
+                        };
+
+                    } catch (error) {
+                        console.error('Error:', error);
+                        alert('Error generating documentation: ' + error.message);
+                        if (eventSource) {
+                            eventSource.close();
+                        }
+                        this.isLoading = false;
+                    }
+                },
+
+                downloadAgain() {
+                    if (this.generatedFile) {
+                        const url = window.URL.createObjectURL(this.generatedFile);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'project_docs.zip';
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        a.remove();
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html> 

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpecGen - AI-Powered Project Documentation Generator</title>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .dark { color-scheme: dark; }
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="min-h-screen transition-colors duration-200" 
+      x-data="{ darkMode: localStorage.getItem('darkMode') === 'true' || false }" 
+      :class="{ 'dark bg-gray-900': darkMode, 'bg-gray-100': !darkMode }">
+    
+    <div class="container mx-auto px-4 py-8 max-w-5xl">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-12">
+            <h1 class="text-4xl font-bold">
+                <span class="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500">SpecGen</span>
+            </h1>
+            <button @click="darkMode = !darkMode; localStorage.setItem('darkMode', darkMode)" 
+                    class="p-2 rounded-lg transition-colors duration-200"
+                    :class="{ 'bg-gray-700 text-white hover:bg-gray-600': darkMode, 'bg-gray-200 text-gray-800 hover:bg-gray-300': !darkMode }">
+                <span x-show="!darkMode" x-cloak>🌙</span>
+                <span x-show="darkMode" x-cloak>☀️</span>
+            </button>
+        </div>
+
+        <!-- Hero Section -->
+        <div class="text-center mb-16">
+            <h2 class="text-5xl font-bold mb-6 transition-colors duration-200" :class="{ 'text-white': darkMode, 'text-gray-800': !darkMode }">
+                Make AI Agents More Autonomous with Better Documentation
+            </h2>
+            <p class="text-xl mb-8 transition-colors duration-200" :class="{ 'text-gray-300': darkMode, 'text-gray-600': !darkMode }">
+                Generate comprehensive project documentation that helps AI agents understand and maintain your codebase effectively.
+            </p>
+            <a href="/wizard" class="inline-block px-8 py-4 text-lg font-medium text-white bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg hover:opacity-90 transition-opacity">
+                Launch Documentation Wizard
+            </a>
+        </div>
+
+        <!-- Challenges Section -->
+        <div class="mb-16">
+            <h3 class="text-2xl font-bold mb-8 text-center transition-colors duration-200" :class="{ 'text-white': darkMode, 'text-gray-800': !darkMode }">
+                Common Challenges with AI Coding Agents
+            </h3>
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="p-6 rounded-lg transition-colors duration-200" :class="{ 'bg-gray-800': darkMode, 'bg-white': !darkMode }">
+                    <div class="text-3xl mb-4">🤖</div>
+                    <h4 class="text-xl font-semibold mb-2 transition-colors duration-200" :class="{ 'text-white': darkMode, 'text-gray-800': !darkMode }">
+                        Hallucinations
+                    </h4>
+                    <p class="transition-colors duration-200" :class="{ 'text-gray-300': darkMode, 'text-gray-600': !darkMode }">
+                        AI agents can make incorrect assumptions about your project's structure and requirements, leading to inconsistent code.
+                    </p>
+                </div>
+                <div class="p-6 rounded-lg transition-colors duration-200" :class="{ 'bg-gray-800': darkMode, 'bg-white': !darkMode }">
+                    <div class="text-3xl mb-4">📉</div>
+                    <h4 class="text-xl font-semibold mb-2 transition-colors duration-200" :class="{ 'text-white': darkMode, 'text-gray-800': !darkMode }">
+                        Code Degradation
+                    </h4>
+                    <p class="transition-colors duration-200" :class="{ 'text-gray-300': darkMode, 'text-gray-600': !darkMode }">
+                        Without proper documentation, AI-generated code can drift from the original design and become harder to maintain.
+                    </p>
+                </div>
+                <div class="p-6 rounded-lg transition-colors duration-200" :class="{ 'bg-gray-800': darkMode, 'bg-white': !darkMode }">
+                    <div class="text-3xl mb-4">🔄</div>
+                    <h4 class="text-xl font-semibold mb-2 transition-colors duration-200" :class="{ 'text-white': darkMode, 'text-gray-800': !darkMode }">
+                        Context Loss
+                    </h4>
+                    <p class="transition-colors duration-200" :class="{ 'text-gray-300': darkMode, 'text-gray-600': !darkMode }">
+                        AI agents struggle to maintain context across sessions, making it difficult to build on previous work.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Solution Section -->
+        <div class="mb-16">
+            <h3 class="text-2xl font-bold mb-8 text-center transition-colors duration-200" :class="{ 'text-white': darkMode, 'text-gray-800': !darkMode }">
+                The Documentation-First Solution
+            </h3>
+            <div class="grid md:grid-cols-2 gap-8">
+                <div class="p-6 rounded-lg transition-colors duration-200" :class="{ 'bg-gray-800': darkMode, 'bg-white': !darkMode }">
+                    <h4 class="text-xl font-semibold mb-4 transition-colors duration-200" :class="{ 'text-white': darkMode, 'text-gray-800': !darkMode }">
+                        What SpecGen Does
+                    </h4>
+                    <ul class="space-y-3 transition-colors duration-200" :class="{ 'text-gray-300': darkMode, 'text-gray-600': !darkMode }">
+                        <li class="flex items-center">
+                            <span class="mr-2">✓</span>
+                            Analyzes your project requirements
+                        </li>
+                        <li class="flex items-center">
+                            <span class="mr-2">✓</span>
+                            Generates comprehensive documentation
+                        </li>
+                        <li class="flex items-center">
+                            <span class="mr-2">✓</span>
+                            Recommends essential documents based on context
+                        </li>
+                        <li class="flex items-center">
+                            <span class="mr-2">✓</span>
+                            Creates a consistent foundation for AI development
+                        </li>
+                    </ul>
+                </div>
+                <div class="p-6 rounded-lg transition-colors duration-200" :class="{ 'bg-gray-800': darkMode, 'bg-white': !darkMode }">
+                    <h4 class="text-xl font-semibold mb-4 transition-colors duration-200" :class="{ 'text-white': darkMode, 'text-gray-800': !darkMode }">
+                        Benefits
+                    </h4>
+                    <ul class="space-y-3 transition-colors duration-200" :class="{ 'text-gray-300': darkMode, 'text-gray-600': !darkMode }">
+                        <li class="flex items-center">
+                            <span class="mr-2">✓</span>
+                            Reduces AI hallucinations and errors
+                        </li>
+                        <li class="flex items-center">
+                            <span class="mr-2">✓</span>
+                            Maintains code quality over time
+                        </li>
+                        <li class="flex items-center">
+                            <span class="mr-2">✓</span>
+                            Improves AI agent autonomy
+                        </li>
+                        <li class="flex items-center">
+                            <span class="mr-2">✓</span>
+                            Saves development time and resources
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center py-8 border-t transition-colors duration-200" :class="{ 'border-gray-700': darkMode, 'border-gray-200': !darkMode }">
+            <p class="mb-4 transition-colors duration-200" :class="{ 'text-gray-300': darkMode, 'text-gray-600': !darkMode }">
+                Created by <a href="https://splatic.us"  class="text-blue-500 hover:text-blue-600">Splaticus</a>
+            </p>
+            <p class="transition-colors duration-200" :class="{ 'text-gray-300': darkMode, 'text-gray-600': !darkMode }">
+                Need support or want to hire me? Contact <a href="mailto:support@specgen.dev" class="text-blue-500 hover:text-blue-600">sam@splatic.us</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html> 
