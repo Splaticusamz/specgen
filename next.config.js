@@ -1,5 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  async rewrites() {
+    return [
+      {
+        source: '/generate-progress/stream',
+        destination: '/api/generate-progress/stream'
+      }
+    ]
+  },
   async headers() {
     return [
       {
