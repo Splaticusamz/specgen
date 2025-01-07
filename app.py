@@ -438,5 +438,46 @@ def check_progress(session_id):
         print(f"Error in check_progress: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/generate', methods=['POST'])
+def generate():
+    try:
+        data = request.json
+        session_id = data.get('session_id')
+        
+        if not session_id:
+            return jsonify({'error': 'No session ID provided'})
+
+        if session_id not in session_storage:
+            return jsonify({'error': 'Session not found'})
+
+        session_data = session_storage[session_id]
+        
+        # Create ZIP file with generated documents
+        memory_file = BytesIO()
+        with ZipFile(memory_file, 'w') as zf:
+            for doc in session_data['selected_docs']:
+                doc_id = doc['id']
+                if doc_id in session_data['generated_content']:
+                    content = session_data['generated_content'][doc_id]
+                    zf.writestr(f"{doc_id}.md", content)
+
+        # Clean up session data
+        del session_storage[session_id]
+
+        # Prepare the response
+        memory_file.seek(0)
+        response = send_file(
+            memory_file,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name='project_docs.zip'
+        )
+        response.headers['Content-Type'] = 'application/zip'
+        return response
+
+    except Exception as e:
+        print(f"Error in generate: {str(e)}")
+        return jsonify({'error': str(e)})
+
 if __name__ == '__main__':
     app.run(debug=True, port=5000) 
