@@ -126,7 +126,47 @@ def generate_with_deepseek(prompt):
         }
         response = requests.post(DEEPSEEK_API_URL, headers=headers, json=data)
         response.raise_for_status()
-        return response.json()['choices'][0]['message']['content']
+        response_text = response.json()['choices'][0]['message']['content']
+
+        # If this is a follow-up questions request (contains JSON structure)
+        if '"questions":' in prompt:
+            try:
+                # First try to parse the response directly
+                try:
+                    json_data = json.loads(response_text)
+                except:
+                    # If direct parsing fails, try to extract JSON from the response
+                    import re
+                    json_match = re.search(r'\{[\s\S]*\}', response_text)
+                    if json_match:
+                        response_text = json_match.group(0)
+                        json_data = json.loads(response_text)
+                    else:
+                        raise Exception("Could not parse JSON response")
+
+                # Ensure the response has both questions and recommended_docs
+                if 'questions' not in json_data:
+                    json_data['questions'] = []
+                if 'recommended_docs' not in json_data:
+                    # Add default recommendations based on project type
+                    json_data['recommended_docs'] = ['cursorrules', 'prd', 'tech_stack']
+                
+                return json.dumps(json_data)
+            except Exception as e:
+                print(f"Error parsing Deepseek JSON response: {str(e)}")
+                # Return a default structure if parsing fails
+                return json.dumps({
+                    "questions": [
+                        {"id": "q1", "question": "What is your target platform or deployment environment?"},
+                        {"id": "q2", "question": "What are your scalability requirements?"},
+                        {"id": "q3", "question": "Do you have any specific security requirements?"},
+                        {"id": "q4", "question": "What is your preferred technology stack?"},
+                        {"id": "q5", "question": "What are your testing requirements?"}
+                    ],
+                    "recommended_docs": ["cursorrules", "prd", "tech_stack"]
+                })
+        
+        return response_text
     except Exception as e:
         print(f"Deepseek error: {str(e)}")
         raise Exception(f"Error with Deepseek: {str(e)}")

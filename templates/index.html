@@ -149,8 +149,41 @@
                                 </div>
                             </div>
 
-                            <!-- Deepseek Option -->
+                            <!-- Gemini Option -->
                             <div class="mt-6 mb-8 p-4 rounded-lg transition-colors duration-200" 
+                                 :class="{ 'bg-gray-700': darkMode, 'bg-gray-100': !darkMode }">
+                                <div class="flex items-center justify-between mb-4">
+                                    <div>
+                                        <h3 class="text-lg font-medium">Google Gemini (Free)</h3>
+                                        <p class="text-sm mt-1" :class="{ 'text-gray-300': darkMode, 'text-gray-600': !darkMode }">
+                                            Get started quickly with Google's free tier
+                                        </p>
+                                    </div>
+                                    <button @click="useGemini()"
+                                            class="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                                        Use Gemini
+                                    </button>
+                                </div>
+                                <div class="text-sm" :class="{ 'text-gray-300': darkMode, 'text-gray-600': !darkMode }">
+                                    ✓ No API key needed<br>
+                                    ✓ Good quality output<br>
+                                    ✓ Generous rate limits
+                                </div>
+                            </div>
+
+                            <div class="relative">
+                                <div class="absolute inset-0 flex items-center" aria-hidden="true">
+                                    <div class="w-full border-t" :class="{ 'border-gray-600': darkMode, 'border-gray-300': !darkMode }"></div>
+                                </div>
+                                <div class="relative flex justify-center text-sm">
+                                    <span class="px-2 text-sm" :class="{ 'bg-gray-800 text-gray-300': darkMode, 'bg-white text-gray-500': !darkMode }">
+                                        OR
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Deepseek Option -->
+                            <div class="mt-8 p-4 rounded-lg transition-colors duration-200" 
                                  :class="{ 'bg-gray-700': darkMode, 'bg-gray-100': !darkMode }">
                                 <div class="flex items-center justify-between mb-4">
                                     <div>
@@ -182,13 +215,13 @@
                                 </div>
                             </div>
 
-                            <!-- Gemini Option -->
+                            <!-- Claude Option -->
                             <div class="mt-8 p-4 rounded-lg transition-colors duration-200" 
                                  :class="{ 'bg-gray-700': darkMode, 'bg-gray-100': !darkMode }">
                                 <div class="mb-4">
-                                    <h3 class="text-lg font-medium">Google Gemini (Free)</h3>
+                                    <h3 class="text-lg font-medium">Anthropic Claude (Premium)</h3>
                                     <p class="text-sm mt-1" :class="{ 'text-gray-300': darkMode, 'text-gray-600': !darkMode }">
-                                        Get started quickly with Google's free tier
+                                        Use your own Claude API key for premium quality
                                     </p>
                                 </div>
                                 <div class="flex space-x-2">
