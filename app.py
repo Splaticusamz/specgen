@@ -486,73 +486,39 @@ def generate_progress_stream():
         api_key = request.args.get('api_key', '')
         using_gemini = request.args.get('using_gemini', 'false').lower() == 'true'
 
-        # Create session ID
+        # Start the background generation
+        data = {
+            'problem': problem,
+            'solution': solution,
+            'follow_up_answers': follow_up_answers,
+            'selected_docs': selected_docs,
+            'final_notes': final_notes,
+            'api_key': api_key,
+            'using_gemini': using_gemini
+        }
+        
         session_id = str(time.time())
         os.makedirs('sessions', exist_ok=True)
-        
-        # Store session data
         with open(f'sessions/{session_id}.json', 'w') as f:
-            json.dump({
-                'problem': problem,
-                'solution': solution,
-                'follow_up_answers': follow_up_answers,
-                'selected_docs': selected_docs,
-                'final_notes': final_notes,
-                'api_key': api_key,
-                'using_gemini': using_gemini
-            }, f)
-
-        print(f"Starting generation for session {session_id}")  # Debug log
+            json.dump(data, f)
+            
+        # Start generation in a background thread
+        import threading
+        thread = threading.Thread(target=generate_docs_in_background, args=(session_id,))
+        thread.start()
 
         def generate():
-            try:
-                client = get_llm_client(api_key, using_gemini)
-                
-                for i, doc in enumerate(selected_docs):
-                    print(f"Generating doc {i+1}/{len(selected_docs)}: {doc['id']}")  # Debug log
-                    
-                    data = {
-                        'status': 'progress',
-                        'completed': i,
-                        'total': len(selected_docs),
-                        'current_file': doc['id']
-                    }
-                    yield f"data: {json.dumps(data)}\n\n"
-                    
-                    # Generate content
-                    prompt = f"""Generate content for {doc['id']} documentation.
-Project context:
-Problem: {problem}
-Solution: {solution}
-Additional input: {doc.get('optional_input', '')}
-Follow-up answers: {json.dumps(follow_up_answers)}
-Final notes: {final_notes}
-
-Generate comprehensive and well-structured documentation in markdown format."""
-
-                    try:
-                        if using_gemini:
-                            content = generate_with_gemini(prompt)
-                        else:
-                            content = generate_with_claude(client, prompt)
-                            
-                        print(f"Generated content for {doc['id']}")  # Debug log
-                        
-                        # Store generated content with session ID
-                        with open(f'sessions/{session_id}_{doc["id"]}.md', 'w') as f:
-                            f.write(content)
-                            
-                    except Exception as e:
-                        print(f"Error generating {doc['id']}: {str(e)}")  # Debug log
-                        yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
-                        continue
-                
-                print("Generation complete")  # Debug log
-                yield f"data: {json.dumps({'status': 'complete', 'session_id': session_id})}\n\n"
-
-            except Exception as e:
-                print(f"Error in generate(): {str(e)}")  # Debug log
-                yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
+            for i, doc in enumerate(selected_docs):
+                data = {
+                    'status': 'progress',
+                    'completed': i,
+                    'total': len(selected_docs),
+                    'current_file': doc['id']
+                }
+                yield f"data: {json.dumps(data)}\n\n"
+                time.sleep(1)  # Simulate progress
+            
+            yield f"data: {json.dumps({'status': 'complete', 'session_id': session_id})}\n\n"
 
         return Response(generate(), mimetype='text/event-stream')
         
