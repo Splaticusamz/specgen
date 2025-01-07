@@ -486,29 +486,30 @@ def generate_progress_stream():
         api_key = request.args.get('api_key', '')
         using_gemini = request.args.get('using_gemini', 'false').lower() == 'true'
 
-        # Start the background generation
-        data = {
-            'problem': problem,
-            'solution': solution,
-            'follow_up_answers': follow_up_answers,
-            'selected_docs': selected_docs,
-            'final_notes': final_notes,
-            'api_key': api_key,
-            'using_gemini': using_gemini
-        }
-        
+        # Create session
         session_id = str(time.time())
         os.makedirs('sessions', exist_ok=True)
-        with open(f'sessions/{session_id}.json', 'w') as f:
-            json.dump(data, f)
-            
-        # Start generation in a background thread
-        import threading
-        thread = threading.Thread(target=generate_docs_in_background, args=(session_id,))
-        thread.start()
+        
+        # Get LLM client
+        client = get_llm_client(api_key, using_gemini)
 
         def generate():
+            # Store session data
+            data = {
+                'problem': problem,
+                'solution': solution,
+                'follow_up_answers': follow_up_answers,
+                'selected_docs': selected_docs,
+                'final_notes': final_notes,
+                'api_key': api_key,
+                'using_gemini': using_gemini
+            }
+            with open(f'sessions/{session_id}.json', 'w') as f:
+                json.dump(data, f)
+
+            # Generate each document
             for i, doc in enumerate(selected_docs):
+                # Send progress
                 data = {
                     'status': 'progress',
                     'completed': i,
@@ -516,14 +517,38 @@ def generate_progress_stream():
                     'current_file': doc['id']
                 }
                 yield f"data: {json.dumps(data)}\n\n"
-                time.sleep(1)  # Simulate progress
-            
+
+                # Generate content
+                prompt = f"""Generate content for {doc['id']} documentation.
+Project context:
+Problem: {problem}
+Solution: {solution}
+Additional input: {doc.get('optional_input', '')}
+Follow-up answers: {json.dumps(follow_up_answers)}
+Final notes: {final_notes}
+
+Generate comprehensive and well-structured documentation in markdown format."""
+
+                try:
+                    if using_gemini:
+                        content = generate_with_gemini(prompt)
+                    else:
+                        content = generate_with_claude(client, prompt)
+
+                    # Save the generated content
+                    with open(f'sessions/{session_id}_{doc["id"]}.md', 'w') as f:
+                        f.write(content)
+                except Exception as e:
+                    print(f"Error generating {doc['id']}: {str(e)}")
+                    continue
+
+            # Send completion with session ID
             yield f"data: {json.dumps({'status': 'complete', 'session_id': session_id})}\n\n"
 
         return Response(generate(), mimetype='text/event-stream')
-        
+
     except Exception as e:
-        print(f"Error in generate_progress_stream: {str(e)}")  # Debug log
+        print(f"Error in generate_progress_stream: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
