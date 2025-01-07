@@ -682,10 +682,8 @@
                     this.totalFiles = selectedDocs.length;
                     this.completedFiles = 0;
                     document.getElementById('generation-progress').classList.remove('hidden');
-                    let eventSource = null;
 
                     try {
-                        // First, store the generation data
                         const generationData = {
                             problem: this.problem,
                             solution: this.solution,
@@ -696,7 +694,8 @@
                             using_gemini: this.usingGemini
                         };
 
-                        const storeResponse = await fetch('/store-generation-data', {
+                        // Start generation
+                        const startResponse = await fetch('/start-generation', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -704,93 +703,72 @@
                             body: JSON.stringify(generationData)
                         });
 
-                        if (!storeResponse.ok) {
-                            throw new Error('Failed to store generation data');
+                        if (!startResponse.ok) {
+                            throw new Error('Failed to start generation');
                         }
 
-                        // Then start SSE connection for progress updates
-                        const queryParams = new URLSearchParams({
-                            problem: this.problem,
-                            solution: this.solution,
-                            follow_up_answers: JSON.stringify(this.followUpAnswers),
-                            selected_docs: JSON.stringify(selectedDocs),
-                            final_notes: this.finalNotes,
-                            api_key: document.getElementById('api-key').value,
-                            using_gemini: this.usingGemini
-                        });
+                        const startData = await startResponse.json();
+                        const sessionId = startData.session_id;
 
-                        eventSource = new EventSource(`/generate-progress/stream?${queryParams}`);
-                        let hasError = false;
-
-                        eventSource.onmessage = async (event) => {
-                            const data = JSON.parse(event.data);
-                            
-                            if (data.error || (data.status === 'error' && data.message)) {
-                                hasError = true;
-                                const errorMessage = data.error || data.message;
-                                alert(errorMessage);
-                                eventSource.close();
-                                this.isLoading = false;
-                                // If it's a credit balance error, disable the generate button
-                                if (errorMessage.toLowerCase().includes('credit balance')) {
-                                    this.apiKeyValidated = false;
-                                    const statusEl = document.getElementById('api-status');
-                                    statusEl.textContent = '❌ ' + errorMessage;
-                                    statusEl.className = 'mt-2 text-sm text-red-500';
+                        // Poll for progress
+                        const pollInterval = setInterval(async () => {
+                            try {
+                                const progressResponse = await fetch(`/check-progress/${sessionId}`);
+                                if (!progressResponse.ok) {
+                                    throw new Error('Failed to check progress');
                                 }
-                                return;
-                            }
 
-                            if (data.status === 'progress') {
-                                this.completedFiles = data.completed;
-                                this.currentlyGenerating = data.current_file;
-                            } else if (data.status === 'complete') {
-                                eventSource.close();
+                                const progressData = await progressResponse.json();
                                 
-                                // All documents generated, create and download zip
-                                const response = await fetch('/generate', {
-                                    method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json',
-                                    },
-                                    body: JSON.stringify(generationData)
-                                });
-
-                                if (response.ok) {
-                                    const blob = await response.blob();
-                                    this.generatedFile = blob;
-                                    const url = window.URL.createObjectURL(blob);
-                                    const a = document.createElement('a');
-                                    a.href = url;
-                                    a.download = 'project_docs.zip';
-                                    document.body.appendChild(a);
-                                    a.click();
-                                    window.URL.revokeObjectURL(url);
-                                    a.remove();
-                                    this.generationComplete = true;
-                                } else {
-                                    const error = await response.json();
-                                    alert(error.error || 'Error generating documentation');
+                                if (progressData.error) {
+                                    clearInterval(pollInterval);
+                                    throw new Error(progressData.error);
                                 }
+
+                                this.completedFiles = progressData.completed;
+                                this.currentlyGenerating = progressData.current_file;
+
+                                if (progressData.status === 'complete') {
+                                    clearInterval(pollInterval);
+                                    
+                                    // Download the generated files
+                                    const response = await fetch('/generate', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                        },
+                                        body: JSON.stringify({ session_id: sessionId })
+                                    });
+
+                                    if (response.ok) {
+                                        const blob = await response.blob();
+                                        this.generatedFile = blob;
+                                        const url = window.URL.createObjectURL(blob);
+                                        const a = document.createElement('a');
+                                        a.href = url;
+                                        a.download = 'project_docs.zip';
+                                        document.body.appendChild(a);
+                                        a.click();
+                                        window.URL.revokeObjectURL(url);
+                                        a.remove();
+                                        this.generationComplete = true;
+                                    } else {
+                                        const error = await response.json();
+                                        throw new Error(error.error || 'Error generating documentation');
+                                    }
+                                    this.isLoading = false;
+                                }
+                            } catch (error) {
+                                clearInterval(pollInterval);
+                                console.error('Error:', error);
+                                alert('Error generating documentation: ' + error.message);
                                 this.isLoading = false;
                             }
-                        };
-
-                        eventSource.onerror = (error) => {
-                            console.error('EventSource error:', error);
-                            if (!hasError) {
-                                alert('Error generating documentation. Please try again.');
-                            }
-                            eventSource.close();
-                            this.isLoading = false;
-                        };
+                        }, 1000);  // Poll every second
 
                     } catch (error) {
                         console.error('Error:', error);
                         alert('Error generating documentation: ' + error.message);
-                        if (eventSource) {
-                            eventSource.close();
-                        }
                         this.isLoading = false;
                     }
                 },
