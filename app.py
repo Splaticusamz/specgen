@@ -199,36 +199,56 @@ def generate_with_gemini(prompt):
             try:
                 # First try to parse the response directly
                 response_text = response.text
+                print(f"Gemini raw response: {response_text[:100]}...")
                 try:
                     json_data = json.loads(response_text)
-                except:
+                    print("Successfully parsed JSON response")
+                except json.JSONDecodeError as e:
+                    print(f"Failed to parse JSON directly: {str(e)}")
                     # If direct parsing fails, try to extract JSON from the response
                     import re
                     json_match = re.search(r'\{[\s\S]*\}', response_text)
                     if json_match:
                         response_text = json_match.group(0)
+                        print(f"Extracted JSON: {response_text[:100]}...")
                         json_data = json.loads(response_text)
                     else:
                         raise Exception("Could not parse JSON response")
 
                 # Ensure the response has both questions and recommended_docs
                 if 'questions' not in json_data:
-                    json_data['questions'] = []
-                if 'recommended_docs' not in json_data:
-                    # Add default recommendations based on project type
+                    print("No questions in response, adding default questions")
+                    json_data['questions'] = [
+                        {"id": "q1", "question": "What are the key technical constraints or requirements for this project?"},
+                        {"id": "q2", "question": "What is the expected scale and performance requirements?"},
+                        {"id": "q3", "question": "What are the critical integration points in the system?"}
+                    ]
+                elif len(json_data['questions']) < 3:
+                    print("Adding default questions to reach 3")
+                    default_questions = [
+                        {"id": "q1", "question": "What are the key technical constraints or requirements for this project?"},
+                        {"id": "q2", "question": "What is the expected scale and performance requirements?"},
+                        {"id": "q3", "question": "What are the critical integration points in the system?"}
+                    ]
+                    json_data['questions'].extend(default_questions[len(json_data['questions']):])
+                elif len(json_data['questions']) > 3:
+                    print("Trimming questions to exactly 3")
+                    json_data['questions'] = json_data['questions'][:3]
+                
+                if 'recommended_docs' not in json_data or not json_data['recommended_docs']:
+                    print("No recommended_docs in response, adding defaults")
                     json_data['recommended_docs'] = ['cursorrules', 'prd', 'tech_stack']
                 
                 return json.dumps(json_data)
             except Exception as e:
                 print(f"Error parsing Gemini JSON response: {str(e)}")
+                print(f"Full response text: {response_text}")
                 # Return a default structure if parsing fails
                 return json.dumps({
                     "questions": [
-                        {"id": "q1", "question": "What is your target platform or deployment environment?"},
-                        {"id": "q2", "question": "What are your scalability requirements?"},
-                        {"id": "q3", "question": "Do you have any specific security requirements?"},
-                        {"id": "q4", "question": "What is your preferred technology stack?"},
-                        {"id": "q5", "question": "What are your testing requirements?"}
+                        {"id": "q1", "question": "What are the key technical constraints or requirements for this project?"},
+                        {"id": "q2", "question": "What is the expected scale and performance requirements?"},
+                        {"id": "q3", "question": "What are the critical integration points in the system?"}
                     ],
                     "recommended_docs": ["cursorrules", "prd", "tech_stack"]
                 })
@@ -314,7 +334,7 @@ Your task:
 - security (Security guidelines)
 - testing (Testing strategy)
 
-Respond only with a JSON object in this exact format:
+You must respond with a valid JSON object in this exact format, with no additional text before or after:
 {{
     "questions": [
         {{"id": "q1", "question": "First specific question"}},
@@ -324,7 +344,9 @@ Respond only with a JSON object in this exact format:
     "recommended_docs": ["doc1", "doc2", "doc3"]
 }}"""
 
+    print(f"Sending prompt to Gemini: {prompt[:100]}...")
     response = client.generate_content(prompt)
+    print(f"Got response from Gemini: {response.text[:100]}...")
     return response.text
 
 def get_follow_up_questions_deepseek(problem, solution):
