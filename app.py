@@ -2,6 +2,7 @@ import os
 import json
 import google.generativeai as genai
 from anthropic import Anthropic
+import requests
 from flask import Flask, request, jsonify, Response, send_file, send_from_directory, render_template
 from flask_cors import CORS
 from zipfile import ZipFile
@@ -26,6 +27,10 @@ session_storage = defaultdict(dict)
 # Initialize Gemini
 genai.configure(api_key=os.getenv('GOOGLE_API_KEY', 'your-gemini-api-key'))
 gemini_model = genai.GenerativeModel('gemini-pro')
+
+# Deepseek configuration
+DEEPSEEK_API_KEY = "sk-6f12bef7309943e6b726153ce7e1e645"
+DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 
 DOCUMENTS = [
     {
@@ -107,9 +112,30 @@ DOCUMENTS = [
     }
 ]
 
-def get_llm_client(api_key, using_gemini):
+def generate_with_deepseek(prompt):
+    try:
+        headers = {
+            "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        data = {
+            "model": "deepseek-chat",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.7,
+            "max_tokens": 2000
+        }
+        response = requests.post(DEEPSEEK_API_URL, headers=headers, json=data)
+        response.raise_for_status()
+        return response.json()['choices'][0]['message']['content']
+    except Exception as e:
+        print(f"Deepseek error: {str(e)}")
+        raise Exception(f"Error with Deepseek: {str(e)}")
+
+def get_llm_client(api_key, using_gemini, using_deepseek=False):
     if using_gemini:
         return gemini_model
+    elif using_deepseek:
+        return None  # Deepseek doesn't need a client
     else:
         return Anthropic(api_key=api_key)
 
@@ -347,6 +373,7 @@ def start_generation():
         final_notes = data.get('final_notes', '')
         api_key = data.get('api_key', '')
         using_gemini = data.get('using_gemini', False)
+        using_deepseek = data.get('using_deepseek', False)
 
         session_id = str(time.time())
         session_storage[session_id] = {
@@ -357,6 +384,7 @@ def start_generation():
             'final_notes': final_notes,
             'api_key': api_key,
             'using_gemini': using_gemini,
+            'using_deepseek': using_deepseek,
             'completed_docs': [],
             'generated_content': {},
             'status': 'in_progress',
@@ -367,7 +395,7 @@ def start_generation():
 
         def generate_docs():
             try:
-                client = get_llm_client(api_key, using_gemini)
+                client = get_llm_client(api_key, using_gemini, using_deepseek)
                 
                 for doc in selected_docs:
                     session_storage[session_id]['current_file'] = doc['id']
@@ -384,6 +412,8 @@ Generate comprehensive and well-structured documentation in markdown format."""
                     try:
                         if using_gemini:
                             content = generate_with_gemini(prompt)
+                        elif using_deepseek:
+                            content = generate_with_deepseek(prompt)
                         else:
                             content = generate_with_claude(client, prompt)
 
