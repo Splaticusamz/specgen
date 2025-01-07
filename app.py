@@ -138,7 +138,8 @@ def generate_with_deepseek(prompt):
                 # First try to parse the response directly
                 try:
                     json_data = json.loads(response_text)
-                except Exception as e:
+                    print("Successfully parsed JSON response")
+                except json.JSONDecodeError as e:
                     print(f"Failed to parse JSON directly: {str(e)}")
                     # If direct parsing fails, try to extract JSON from the response
                     import re
@@ -153,10 +154,13 @@ def generate_with_deepseek(prompt):
                 # Ensure the response has both questions and recommended_docs
                 if 'questions' not in json_data:
                     print("No questions in response, adding default questions")
-                    json_data['questions'] = []
+                    json_data['questions'] = [
+                        {"id": "q1", "question": "What are the key technical constraints or requirements for this project?"},
+                        {"id": "q2", "question": "What is the expected scale and performance requirements?"},
+                        {"id": "q3", "question": "What are the critical integration points in the system?"}
+                    ]
                 if 'recommended_docs' not in json_data:
                     print("No recommended_docs in response, adding defaults")
-                    # Add default recommendations based on project type
                     json_data['recommended_docs'] = ['cursorrules', 'prd', 'tech_stack']
                 
                 return json.dumps(json_data)
@@ -167,10 +171,8 @@ def generate_with_deepseek(prompt):
                 return json.dumps({
                     "questions": [
                         {"id": "q1", "question": "What are the key technical constraints or requirements for this project?"},
-                        {"id": "q2", "question": "What are your scalability requirements?"},
-                        {"id": "q3", "question": "Do you have any specific security requirements?"},
-                        {"id": "q4", "question": "What is your preferred technology stack?"},
-                        {"id": "q5", "question": "What are your testing requirements?"}
+                        {"id": "q2", "question": "What is the expected scale and performance requirements?"},
+                        {"id": "q3", "question": "What are the critical integration points in the system?"}
                     ],
                     "recommended_docs": ["cursorrules", "prd", "tech_stack"]
                 })
@@ -178,7 +180,6 @@ def generate_with_deepseek(prompt):
         return response_text
     except Exception as e:
         print(f"Deepseek error: {str(e)}")
-        print(f"Full error details: {e.__class__.__name__}: {str(e)}")
         raise Exception(f"Error with Deepseek: {str(e)}")
 
 def get_llm_client(api_key, using_gemini, using_deepseek=False):
@@ -350,14 +351,14 @@ Your task:
 - testing (Testing strategy)
 
 Respond only with a JSON object in this exact format:
-{
+{{
     "questions": [
-        {"id": "q1", "question": "First specific question"},
-        {"id": "q2", "question": "Second specific question"},
-        {"id": "q3", "question": "Third specific question"}
+        {{"id": "q1", "question": "First specific question"}},
+        {{"id": "q2", "question": "Second specific question"}},
+        {{"id": "q3", "question": "Third specific question"}}
     ],
     "recommended_docs": ["doc1", "doc2", "doc3"]
-}"""
+}}"""
 
     try:
         print(f"Sending request to Deepseek with prompt: {prompt[:100]}...")
@@ -391,7 +392,19 @@ Respond only with a JSON object in this exact format:
                     {"id": "q2", "question": "What is the expected scale and performance requirements?"},
                     {"id": "q3", "question": "What are the critical integration points in the system?"}
                 ]
-            if 'recommended_docs' not in json_data:
+            elif len(json_data['questions']) < 3:
+                print("Adding default questions to reach 3")
+                default_questions = [
+                    {"id": "q1", "question": "What are the key technical constraints or requirements for this project?"},
+                    {"id": "q2", "question": "What is the expected scale and performance requirements?"},
+                    {"id": "q3", "question": "What are the critical integration points in the system?"}
+                ]
+                json_data['questions'].extend(default_questions[len(json_data['questions']):])
+            elif len(json_data['questions']) > 3:
+                print("Trimming questions to exactly 3")
+                json_data['questions'] = json_data['questions'][:3]
+            
+            if 'recommended_docs' not in json_data or not json_data['recommended_docs']:
                 print("No recommended_docs in response, adding defaults")
                 json_data['recommended_docs'] = ['cursorrules', 'prd', 'tech_stack']
             
@@ -412,7 +425,17 @@ Respond only with a JSON object in this exact format:
                             {"id": "q2", "question": "What is the expected scale and performance requirements?"},
                             {"id": "q3", "question": "What are the critical integration points in the system?"}
                         ]
-                    if 'recommended_docs' not in json_data:
+                    elif len(json_data['questions']) < 3:
+                        default_questions = [
+                            {"id": "q1", "question": "What are the key technical constraints or requirements for this project?"},
+                            {"id": "q2", "question": "What is the expected scale and performance requirements?"},
+                            {"id": "q3", "question": "What are the critical integration points in the system?"}
+                        ]
+                        json_data['questions'].extend(default_questions[len(json_data['questions']):])
+                    elif len(json_data['questions']) > 3:
+                        json_data['questions'] = json_data['questions'][:3]
+                    
+                    if 'recommended_docs' not in json_data or not json_data['recommended_docs']:
                         json_data['recommended_docs'] = ['cursorrules', 'prd', 'tech_stack']
                     return json.dumps(json_data)
                 except:
@@ -500,11 +523,19 @@ def get_follow_up():
             if len(response_data.get('questions', [])) > 3:
                 print("Trimming questions to exactly 3")
                 response_data['questions'] = response_data['questions'][:3]
+            elif len(response_data.get('questions', [])) < 3:
+                print("Adding default questions to reach 3")
+                default_questions = [
+                    {"id": "q1", "question": "What are the key technical constraints or requirements for this project?"},
+                    {"id": "q2", "question": "What is the expected scale and performance requirements?"},
+                    {"id": "q3", "question": "What are the critical integration points in the system?"}
+                ]
+                response_data['questions'].extend(default_questions[len(response_data['questions']):])
             
-            # Ensure recommended_docs exists
-            if 'recommended_docs' not in response_data:
+            # Ensure recommended_docs exists and is not empty
+            if 'recommended_docs' not in response_data or not response_data['recommended_docs']:
                 print("Adding default recommended_docs")
-                response_data['recommended_docs'] = ['prd', 'tech_stack', 'api']
+                response_data['recommended_docs'] = ['cursorrules', 'prd', 'tech_stack']
             
             return jsonify(response_data)
         except json.JSONDecodeError as e:
@@ -517,7 +548,7 @@ def get_follow_up():
                     {"id": "q2", "question": "What is the expected scale and performance requirements?"},
                     {"id": "q3", "question": "What are the critical integration points in the system?"}
                 ],
-                'recommended_docs': ['prd', 'tech_stack', 'api']
+                'recommended_docs': ['cursorrules', 'prd', 'tech_stack']
             })
 
     except Exception as e:

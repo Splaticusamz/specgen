@@ -378,6 +378,43 @@
                     </div>
                 </div>
 
+                <!-- Loading Overlay -->
+                <div x-show="isLoading" 
+                     class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-8 text-center max-w-sm">
+                        <div class="flex flex-col items-center space-y-4">
+                            <div class="mb-4">
+                                <span class="text-3xl">🤔</span>
+                            </div>
+                            <p class="text-lg font-medium mb-2" :class="{ 'text-white': darkMode, 'text-gray-800': !darkMode }">
+                                Thinking, just a moment...
+                            </p>
+                            <div class="thinking-dots" :class="{ 'text-blue-500': !darkMode, 'text-blue-400': darkMode }">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Error Message -->
+                <div x-show="errorMessage" 
+                     class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-8 text-center max-w-sm">
+                        <div class="flex flex-col items-center space-y-4">
+                            <div class="mb-4">
+                                <span class="text-3xl">❌</span>
+                            </div>
+                            <p class="text-lg font-medium mb-2" :class="{ 'text-white': darkMode, 'text-gray-800': !darkMode }" x-text="errorMessage"></p>
+                            <button @click="errorMessage = ''"
+                                    class="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Navigation Buttons -->
                 <div class="flex justify-between pt-4">
                     <button x-show="currentStep > 1"
@@ -388,12 +425,14 @@
                     </button>
                     <button x-show="currentStep < 4"
                             @click="handleNext()"
-                            class="px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                            :disabled="isLoading"
+                            class="px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed">
                         Next
                     </button>
                     <button x-show="currentStep === 4"
                             @click="generateDocs()"
-                            class="px-4 py-2 rounded-md bg-green-500 text-white hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                            :disabled="isLoading"
+                            class="px-4 py-2 rounded-md bg-green-500 text-white hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed">
                         Generate Documentation
                     </button>
                 </div>
@@ -510,6 +549,7 @@
                 followUpAnswers: {},
                 finalNotes: '',
                 isLoading: false,
+                errorMessage: '',
                 recommendedDocs: ['cursorrules', 'prd', 'tech_stack'],
                 allDocsSelected: false,
                 generatedFile: null,
@@ -551,6 +591,11 @@
                     // Hide the validate button
                     const validateBtn = document.getElementById('validate-btn');
                     validateBtn.style.display = 'none';
+                    
+                    // Reset any existing state
+                    this.followUpQuestions = [];
+                    this.followUpAnswers = {};
+                    this.recommendedDocs = ['cursorrules', 'prd', 'tech_stack'];
                     
                     // Automatically proceed to next step
                     this.currentStep = 2;
@@ -635,13 +680,13 @@
 
                 async handleNext() {
                     if (this.currentStep === 1 && !this.apiKeyValidated) {
-                        alert('Please validate your API key first');
+                        this.errorMessage = 'Please validate your API key first';
                         return;
                     }
 
                     if (this.currentStep === 2) {
                         if (!this.problem.trim()) {
-                            alert('Please describe the problem you are trying to solve');
+                            this.errorMessage = 'Please describe the problem you are trying to solve';
                             return;
                         }
 
@@ -666,17 +711,19 @@
                             if (response.ok) {
                                 this.followUpQuestions = data.questions || [];
                                 this.recommendedDocs = data.recommended_docs || ['cursorrules', 'prd', 'tech_stack'];
+                                this.currentStep++;
                             } else {
-                                alert(data.error || 'Error getting follow-up questions');
+                                this.errorMessage = data.error || 'Error getting follow-up questions';
                                 return;
                             }
                         } catch (error) {
                             console.error('Error:', error);
-                            alert('Error getting follow-up questions');
+                            this.errorMessage = 'Error getting follow-up questions';
                             return;
                         } finally {
                             this.isLoading = false;
                         }
+                        return;
                     }
 
                     if (this.currentStep === 3) {
@@ -704,17 +751,19 @@
                                 this.$nextTick(() => {
                                     this.selectRecommendedOnly();
                                 });
+                                this.currentStep++;
                             } else {
-                                alert(data.error || 'Error analyzing project requirements');
+                                this.errorMessage = data.error || 'Error analyzing project requirements';
                                 return;
                             }
                         } catch (error) {
                             console.error('Error:', error);
-                            alert('Error analyzing project requirements');
+                            this.errorMessage = 'Error analyzing project requirements';
                             return;
                         } finally {
                             this.isLoading = false;
                         }
+                        return;
                     }
 
                     this.currentStep++;
@@ -732,7 +781,7 @@
                     }));
 
                     if (selectedDocs.length === 0) {
-                        alert('Please select at least one document to generate');
+                        this.errorMessage = 'Please select at least one document to generate';
                         return;
                     }
 
@@ -821,14 +870,14 @@
                             } catch (error) {
                                 clearInterval(pollInterval);
                                 console.error('Error:', error);
-                                alert('Error generating documentation: ' + error.message);
+                                this.errorMessage = error.message || 'Error generating documentation';
                                 this.isLoading = false;
                             }
                         }, 1000);  // Poll every second
 
                     } catch (error) {
                         console.error('Error:', error);
-                        alert('Error generating documentation: ' + error.message);
+                        this.errorMessage = error.message || 'Error generating documentation';
                         this.isLoading = false;
                     }
                 },
