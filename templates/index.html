@@ -450,7 +450,7 @@
                                         <span class="text-4xl">📝</span>
                                     </div>
                                     <div class="space-y-2">
-                                        <p class="text-lg font-medium" :class="{ 'text-black': darkMode, 'text-gray-800': !darkMode }">
+                                        <p class="text-lg font-medium" :class="{ 'text-white': darkMode, 'text-gray-800': !darkMode }">
                                             Generating Documentation...
                                         </p>
                                         <div class="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
@@ -473,7 +473,7 @@
                                         </svg>
                                     </div>
                                     <div class="space-y-2">
-                                        <p class="text-lg font-medium" :class="{ 'text-black': darkMode, 'text-gray-800': !darkMode }">
+                                        <p class="text-lg font-medium" :class="{ 'text-white: darkMode, 'text-gray-800': !darkMode }">
                                             Documentation Generated Successfully!
                                         </p>
                                         <p class="text-sm" :class="{ 'text-gray-400': darkMode, 'text-gray-600': !darkMode }">
@@ -808,12 +808,24 @@
                         const sessionId = startData.session_id;
 
                         // Poll for progress
+                        let retryCount = 0;
+                        const maxRetries = 3;
                         const pollInterval = setInterval(async () => {
                             try {
+                                if (retryCount >= maxRetries) {
+                                    clearInterval(pollInterval);
+                                    throw new Error('Max retries exceeded checking progress');
+                                }
+
                                 const progressResponse = await fetch(`/check-progress/${sessionId}`);
                                 if (!progressResponse.ok) {
-                                    throw new Error('Failed to check progress');
+                                    retryCount++;
+                                    console.warn(`Progress check failed, attempt ${retryCount} of ${maxRetries}`);
+                                    return; // Skip this iteration but don't stop polling yet
                                 }
+
+                                // Reset retry count on successful response
+                                retryCount = 0;
 
                                 const progressData = await progressResponse.json();
                                 
@@ -854,6 +866,9 @@
                                         throw new Error(error.error || 'Error generating documentation');
                                     }
                                     this.isLoading = false;
+                                } else if (progressData.status === 'error') {
+                                    clearInterval(pollInterval);
+                                    throw new Error(progressData.error || 'Error during document generation');
                                 }
                             } catch (error) {
                                 clearInterval(pollInterval);
@@ -861,7 +876,7 @@
                                 this.errorMessage = error.message || 'Error generating documentation';
                                 this.isLoading = false;
                             }
-                        }, 1000);  // Poll every second
+                        }, 2000);  // Poll every 2 seconds instead of 1
 
                     } catch (error) {
                         console.error('Error:', error);
