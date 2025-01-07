@@ -114,6 +114,7 @@ DOCUMENTS = [
 
 def generate_with_deepseek(prompt):
     try:
+        print(f"Sending request to Deepseek with prompt: {prompt[:100]}...")
         headers = {
             "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
             "Content-Type": "application/json"
@@ -124,9 +125,12 @@ def generate_with_deepseek(prompt):
             "temperature": 0.7,
             "max_tokens": 2000
         }
+        print("Making request to Deepseek API...")
         response = requests.post(DEEPSEEK_API_URL, headers=headers, json=data)
+        print(f"Deepseek response status: {response.status_code}")
         response.raise_for_status()
         response_text = response.json()['choices'][0]['message']['content']
+        print(f"Deepseek response: {response_text[:100]}...")
 
         # If this is a follow-up questions request (contains JSON structure)
         if '"questions":' in prompt:
@@ -134,30 +138,35 @@ def generate_with_deepseek(prompt):
                 # First try to parse the response directly
                 try:
                     json_data = json.loads(response_text)
-                except:
+                except Exception as e:
+                    print(f"Failed to parse JSON directly: {str(e)}")
                     # If direct parsing fails, try to extract JSON from the response
                     import re
                     json_match = re.search(r'\{[\s\S]*\}', response_text)
                     if json_match:
                         response_text = json_match.group(0)
+                        print(f"Extracted JSON: {response_text[:100]}...")
                         json_data = json.loads(response_text)
                     else:
                         raise Exception("Could not parse JSON response")
 
                 # Ensure the response has both questions and recommended_docs
                 if 'questions' not in json_data:
+                    print("No questions in response, adding default questions")
                     json_data['questions'] = []
                 if 'recommended_docs' not in json_data:
+                    print("No recommended_docs in response, adding defaults")
                     # Add default recommendations based on project type
                     json_data['recommended_docs'] = ['cursorrules', 'prd', 'tech_stack']
                 
                 return json.dumps(json_data)
             except Exception as e:
                 print(f"Error parsing Deepseek JSON response: {str(e)}")
+                print(f"Full response text: {response_text}")
                 # Return a default structure if parsing fails
                 return json.dumps({
                     "questions": [
-                        {"id": "q1", "question": "What is your target platform or deployment environment?"},
+                        {"id": "q1", "question": "What are the key technical constraints or requirements for this project?"},
                         {"id": "q2", "question": "What are your scalability requirements?"},
                         {"id": "q3", "question": "Do you have any specific security requirements?"},
                         {"id": "q4", "question": "What is your preferred technology stack?"},
@@ -169,6 +178,7 @@ def generate_with_deepseek(prompt):
         return response_text
     except Exception as e:
         print(f"Deepseek error: {str(e)}")
+        print(f"Full error details: {e.__class__.__name__}: {str(e)}")
         raise Exception(f"Error with Deepseek: {str(e)}")
 
 def get_llm_client(api_key, using_gemini, using_deepseek=False):
@@ -316,10 +326,11 @@ Respond only with a JSON object in this exact format:
     response = client.generate_content(prompt)
     return response.text
 
-def get_follow_up_questions_deepseek(prompt, solution):
+def get_follow_up_questions_deepseek(problem, solution):
+    print("Starting Deepseek follow-up questions generation...")
     prompt = f"""You are a technical project analyst. For this project:
 
-Problem: {prompt}
+Problem: {problem}
 Solution: {solution}
 
 Your task:
@@ -339,28 +350,86 @@ Your task:
 - testing (Testing strategy)
 
 Respond only with a JSON object in this exact format:
-{{
+{
     "questions": [
-        {{"id": "q1", "question": "First specific question"}},
-        {{"id": "q2", "question": "Second specific question"}},
-        {{"id": "q3", "question": "Third specific question"}}
+        {"id": "q1", "question": "First specific question"},
+        {"id": "q2", "question": "Second specific question"},
+        {"id": "q3", "question": "Third specific question"}
     ],
     "recommended_docs": ["doc1", "doc2", "doc3"]
-}}"""
+}"""
 
     try:
-        response = generate_with_deepseek(prompt)
-        return response
+        print(f"Sending request to Deepseek with prompt: {prompt[:100]}...")
+        headers = {
+            "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        data = {
+            "model": "deepseek-chat",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.7,
+            "max_tokens": 2000
+        }
+        print("Making request to Deepseek API...")
+        response = requests.post(DEEPSEEK_API_URL, headers=headers, json=data)
+        print(f"Deepseek response status: {response.status_code}")
+        response.raise_for_status()
+        response_text = response.json()['choices'][0]['message']['content']
+        print(f"Deepseek response: {response_text[:100]}...")
+
+        try:
+            # First try to parse the response directly
+            json_data = json.loads(response_text)
+            print("Successfully parsed JSON response")
+            
+            # Ensure the response has both questions and recommended_docs
+            if 'questions' not in json_data:
+                print("No questions in response, adding default questions")
+                json_data['questions'] = [
+                    {"id": "q1", "question": "What are the key technical constraints or requirements for this project?"},
+                    {"id": "q2", "question": "What is the expected scale and performance requirements?"},
+                    {"id": "q3", "question": "What are the critical integration points in the system?"}
+                ]
+            if 'recommended_docs' not in json_data:
+                print("No recommended_docs in response, adding defaults")
+                json_data['recommended_docs'] = ['cursorrules', 'prd', 'tech_stack']
+            
+            return json.dumps(json_data)
+        except json.JSONDecodeError as e:
+            print(f"Failed to parse JSON directly: {str(e)}")
+            # If direct parsing fails, try to extract JSON from the response
+            import re
+            json_match = re.search(r'\{[\s\S]*\}', response_text)
+            if json_match:
+                response_text = json_match.group(0)
+                print(f"Extracted JSON: {response_text[:100]}...")
+                try:
+                    json_data = json.loads(response_text)
+                    if 'questions' not in json_data:
+                        json_data['questions'] = [
+                            {"id": "q1", "question": "What are the key technical constraints or requirements for this project?"},
+                            {"id": "q2", "question": "What is the expected scale and performance requirements?"},
+                            {"id": "q3", "question": "What are the critical integration points in the system?"}
+                        ]
+                    if 'recommended_docs' not in json_data:
+                        json_data['recommended_docs'] = ['cursorrules', 'prd', 'tech_stack']
+                    return json.dumps(json_data)
+                except:
+                    print("Failed to parse extracted JSON")
+            
+            print("Returning default response")
+            return json.dumps({
+                "questions": [
+                    {"id": "q1", "question": "What are the key technical constraints or requirements for this project?"},
+                    {"id": "q2", "question": "What is the expected scale and performance requirements?"},
+                    {"id": "q3", "question": "What are the critical integration points in the system?"}
+                ],
+                "recommended_docs": ["cursorrules", "prd", "tech_stack"]
+            })
     except Exception as e:
-        print(f"Error with Deepseek follow-up: {str(e)}")
-        return json.dumps({
-            "questions": [
-                {"id": "q1", "question": "What are the key technical constraints or requirements for this project?"},
-                {"id": "q2", "question": "What is the expected scale and performance requirements?"},
-                {"id": "q3", "question": "What are the critical integration points in the system?"}
-            ],
-            "recommended_docs": ["prd", "tech_stack", "api"]
-        })
+        print(f"Deepseek error: {str(e)}")
+        raise Exception(f"Error with Deepseek: {str(e)}")
 
 @app.route('/')
 def landing():
@@ -394,35 +463,47 @@ def validate_api_key():
 
 @app.route('/get-follow-up', methods=['POST'])
 def get_follow_up():
+    print("Received get-follow-up request")
     data = request.json
     api_key = data.get('api_key')
     using_gemini = data.get('using_gemini', False)
     using_deepseek = data.get('using_deepseek', False)
     
+    print(f"Request params: using_gemini={using_gemini}, using_deepseek={using_deepseek}")
+    
     if not api_key and not using_gemini and not using_deepseek:
+        print("No API key or model selection provided")
         return jsonify({'error': 'API Key is empty'})
 
     try:
         # Use the appropriate function based on the LLM
         if using_gemini:
+            print("Using Gemini for follow-up questions")
             client = get_llm_client(api_key, using_gemini)
             response_text = get_follow_up_questions_gemini(client, data.get('problem', ''), data.get('solution', ''))
         elif using_deepseek:
+            print("Using Deepseek for follow-up questions")
             response_text = get_follow_up_questions_deepseek(data.get('problem', ''), data.get('solution', ''))
         else:
+            print("Using Claude for follow-up questions")
             client = get_llm_client(api_key, using_gemini)
             response_text = get_follow_up_questions_claude(client, data.get('problem', ''), data.get('solution', ''))
+
+        print(f"Got response text: {response_text[:100]}...")
 
         # Parse the response
         try:
             response_data = json.loads(response_text)
+            print("Successfully parsed response JSON")
             
             # Ensure exactly 3 questions
             if len(response_data.get('questions', [])) > 3:
+                print("Trimming questions to exactly 3")
                 response_data['questions'] = response_data['questions'][:3]
             
             # Ensure recommended_docs exists
             if 'recommended_docs' not in response_data:
+                print("Adding default recommended_docs")
                 response_data['recommended_docs'] = ['prd', 'tech_stack', 'api']
             
             return jsonify(response_data)
@@ -441,6 +522,7 @@ def get_follow_up():
 
     except Exception as e:
         print(f"Error getting follow-up questions: {str(e)}")
+        print(f"Full error details: {e.__class__.__name__}: {str(e)}")
         return jsonify({'error': str(e)})
 
 @app.route('/store-generation-data', methods=['POST'])
