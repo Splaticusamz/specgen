@@ -381,7 +381,8 @@
                 <!-- Loading Overlay -->
                 <div x-show="isLoading" 
                      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div class="bg-white dark:bg-gray-800 rounded-lg p-8 text-center max-w-sm">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-8 text-center max-w-sm"
+                         :class="{ 'bg-gray-800': darkMode, 'bg-white': !darkMode }">
                         <div class="flex flex-col items-center space-y-4">
                             <div class="mb-4">
                                 <span class="text-3xl">🤔</span>
@@ -401,7 +402,8 @@
                 <!-- Error Message -->
                 <div x-show="errorMessage" 
                      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div class="bg-white dark:bg-gray-800 rounded-lg p-8 text-center max-w-sm">
+                    <div class="rounded-lg p-8 text-center max-w-sm"
+                         :class="{ 'bg-gray-800': darkMode, 'bg-white': !darkMode }">
                         <div class="flex flex-col items-center space-y-4">
                             <div class="mb-4">
                                 <span class="text-3xl">❌</span>
@@ -441,7 +443,8 @@
                 <div x-show="isLoading && (currentStep === 2 || currentStep === 3)" 
                      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
                      style="display: none;">
-                    <div class="bg-white dark:bg-gray-800 rounded-lg p-8 text-center max-w-sm">
+                    <div class="rounded-lg p-8 text-center max-w-sm"
+                         :class="{ 'bg-gray-800': darkMode, 'bg-white': !darkMode }">
                         <div class="flex flex-col items-center space-y-4">
                             <div class="mb-4">
                                 <span class="text-3xl">🤔</span>
