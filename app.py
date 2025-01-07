@@ -6,8 +6,12 @@ from flask import Flask, request, jsonify, Response, send_file, send_from_direct
 from zipfile import ZipFile
 from io import BytesIO
 import time
+from collections import defaultdict
 
 app = Flask(__name__)
+
+# In-memory storage for session data
+session_storage = defaultdict(dict)
 
 # Initialize Gemini
 genai.configure(api_key=os.getenv('GOOGLE_API_KEY', 'your-gemini-api-key'))
@@ -432,36 +436,22 @@ def generate():
         if not session_id:
             return jsonify({'error': 'No session ID provided'})
 
-        # Read session data
-        try:
-            with open(f'/tmp/sessions/{session_id}.json', 'r') as f:
-                session_data = json.load(f)
-        except FileNotFoundError:
+        if session_id not in session_storage:
             return jsonify({'error': 'Session not found'})
 
+        session_data = session_storage[session_id]
+        
         # Create ZIP file with generated documents
         memory_file = BytesIO()
         with ZipFile(memory_file, 'w') as zf:
             for doc in session_data['selected_docs']:
                 doc_id = doc['id']
-                try:
-                    with open(f'/tmp/sessions/{session_id}_{doc_id}.md', 'r') as f:
-                        content = f.read()
-                        zf.writestr(f"{doc_id}.md", content)
-                except FileNotFoundError:
-                    print(f"Warning: Content file not found for {doc_id}")
-                    continue
+                if doc_id in session_data['generated_content']:
+                    content = session_data['generated_content'][doc_id]
+                    zf.writestr(f"{doc_id}.md", content)
 
-        # Clean up session files
-        try:
-            os.remove(f'/tmp/sessions/{session_id}.json')
-            for doc in session_data['selected_docs']:
-                try:
-                    os.remove(f'/tmp/sessions/{session_id}_{doc["id"]}.md')
-                except FileNotFoundError:
-                    continue
-        except Exception as e:
-            print(f"Warning: Error cleaning up session files: {str(e)}")
+        # Clean up session data
+        del session_storage[session_id]
 
         memory_file.seek(0)
         return send_file(
@@ -486,12 +476,11 @@ def generate_progress_stream():
         api_key = request.args.get('api_key', '')
         using_gemini = request.args.get('using_gemini', 'false').lower() == 'true'
 
-        # Create session in /tmp
+        # Create session
         session_id = str(time.time())
-        os.makedirs('/tmp/sessions', exist_ok=True)
-
-        # Store initial session data
-        data = {
+        
+        # Store initial session data in memory
+        session_storage[session_id] = {
             'problem': problem,
             'solution': solution,
             'follow_up_answers': follow_up_answers,
@@ -500,10 +489,9 @@ def generate_progress_stream():
             'api_key': api_key,
             'using_gemini': using_gemini,
             'completed_docs': [],
+            'generated_content': {},
             'status': 'in_progress'
         }
-        with open(f'/tmp/sessions/{session_id}.json', 'w') as f:
-            json.dump(data, f)
 
         def generate_event_stream():
             # Send initial event
@@ -531,16 +519,10 @@ Generate comprehensive and well-structured documentation in markdown format."""
                             else:
                                 content = generate_with_claude(client, prompt)
 
-                            with open(f'/tmp/sessions/{session_id}_{doc["id"]}.md', 'w') as f:
-                                f.write(content)
-
+                            # Store content in memory
+                            session_storage[session_id]['generated_content'][doc['id']] = content
                             completed += 1
-                            # Update progress in session file
-                            with open(f'/tmp/sessions/{session_id}.json', 'r') as f:
-                                data = json.load(f)
-                            data['completed_docs'].append(doc['id'])
-                            with open(f'/tmp/sessions/{session_id}.json', 'w') as f:
-                                json.dump(data, f)
+                            session_storage[session_id]['completed_docs'].append(doc['id'])
 
                             # Send progress event
                             yield f"data: {json.dumps({'status': 'progress', 'completed': completed, 'current_file': doc['id']})}\n\n"
@@ -552,23 +534,13 @@ Generate comprehensive and well-structured documentation in markdown format."""
 
                     # Send completion event
                     yield f"data: {json.dumps({'status': 'complete'})}\n\n"
-
-                    # Update session status
-                    with open(f'/tmp/sessions/{session_id}.json', 'r') as f:
-                        data = json.load(f)
-                    data['status'] = 'complete'
-                    with open(f'/tmp/sessions/{session_id}.json', 'w') as f:
-                        json.dump(data, f)
+                    session_storage[session_id]['status'] = 'complete'
 
                 except Exception as e:
                     print(f"Error in generate_docs: {str(e)}")
                     yield f"data: {json.dumps({'status': 'error', 'error': str(e)})}\n\n"
-                    with open(f'/tmp/sessions/{session_id}.json', 'r') as f:
-                        data = json.load(f)
-                    data['status'] = 'error'
-                    data['error'] = str(e)
-                    with open(f'/tmp/sessions/{session_id}.json', 'w') as f:
-                        json.dump(data, f)
+                    session_storage[session_id]['status'] = 'error'
+                    session_storage[session_id]['error'] = str(e)
 
             # Start the generation process
             for event in generate_docs():
@@ -580,7 +552,9 @@ Generate comprehensive and well-structured documentation in markdown format."""
             headers={
                 'Cache-Control': 'no-cache',
                 'Connection': 'keep-alive',
-                'X-Accel-Buffering': 'no'  # Disable buffering for nginx
+                'X-Accel-Buffering': 'no',  # Disable buffering for nginx
+                'Content-Type': 'text/event-stream',
+                'Access-Control-Allow-Origin': '*'  # Allow CORS
             }
         )
 
@@ -588,15 +562,19 @@ Generate comprehensive and well-structured documentation in markdown format."""
         print(f"Error in generate_progress_stream: {str(e)}")
         return Response(
             f"data: {json.dumps({'status': 'error', 'error': str(e)})}\n\n",
-            mimetype='text/event-stream'
+            mimetype='text/event-stream',
+            headers={
+                'Access-Control-Allow-Origin': '*'  # Allow CORS
+            }
         )
 
 @app.route('/check-progress/<session_id>')
 def check_progress(session_id):
     try:
-        with open(f'/tmp/sessions/{session_id}.json', 'r') as f:
-            data = json.load(f)
-        
+        if session_id not in session_storage:
+            return jsonify({'error': 'Session not found'}), 404
+            
+        data = session_storage[session_id]
         return jsonify({
             'status': data.get('status', 'unknown'),
             'completed': len(data.get('completed_docs', [])),
@@ -604,8 +582,6 @@ def check_progress(session_id):
             'error': data.get('error')
         })
 
-    except FileNotFoundError:
-        return jsonify({'error': 'Session not found'}), 404
     except Exception as e:
         print(f"Error in check_progress: {str(e)}")
         return jsonify({'error': str(e)}), 500
