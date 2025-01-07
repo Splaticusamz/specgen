@@ -476,14 +476,6 @@ def generate():
 
 @app.route('/generate-progress/stream')
 def generate_progress_stream():
-    if request.method == 'OPTIONS':
-        # Respond to preflight request
-        response = app.make_default_options_response()
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
-        return response
-
     try:
         # Get query parameters
         problem = request.args.get('problem', '')
@@ -497,25 +489,9 @@ def generate_progress_stream():
         # Create session
         session_id = str(time.time())
         
-        # Store initial session data in memory
-        session_storage[session_id] = {
-            'problem': problem,
-            'solution': solution,
-            'follow_up_answers': follow_up_answers,
-            'selected_docs': selected_docs,
-            'final_notes': final_notes,
-            'api_key': api_key,
-            'using_gemini': using_gemini,
-            'completed_docs': [],
-            'generated_content': {},
-            'status': 'in_progress'
-        }
-
-        def generate_event_stream():
+        def generate():
             try:
-                # Send initial event with retry directive
-                yield 'retry: 1000\n'  # Retry every 1 second if connection is lost
-                yield 'event: message\ndata: ' + json.dumps({'status': 'started', 'session_id': session_id, 'total': len(selected_docs)}) + '\n\n'
+                yield 'data: ' + json.dumps({'status': 'started', 'session_id': session_id, 'total': len(selected_docs)}) + '\n\n'
 
                 client = get_llm_client(api_key, using_gemini)
                 completed = 0
@@ -537,13 +513,8 @@ Generate comprehensive and well-structured documentation in markdown format."""
                         else:
                             content = generate_with_claude(client, prompt)
 
-                        # Store content in memory
-                        session_storage[session_id]['generated_content'][doc['id']] = content
                         completed += 1
-                        session_storage[session_id]['completed_docs'].append(doc['id'])
-
-                        # Send progress event
-                        yield 'event: message\ndata: ' + json.dumps({
+                        yield 'data: ' + json.dumps({
                             'status': 'progress',
                             'completed': completed,
                             'current_file': doc['id']
@@ -551,56 +522,33 @@ Generate comprehensive and well-structured documentation in markdown format."""
 
                     except Exception as e:
                         print(f"Error generating {doc['id']}: {str(e)}")
-                        yield 'event: message\ndata: ' + json.dumps({
+                        yield 'data: ' + json.dumps({
                             'status': 'error',
                             'error': str(e)
                         }) + '\n\n'
                         return
 
-                # Send completion event
-                session_storage[session_id]['status'] = 'complete'
-                yield 'event: message\ndata: ' + json.dumps({'status': 'complete'}) + '\n\n'
+                yield 'data: ' + json.dumps({'status': 'complete'}) + '\n\n'
 
             except Exception as e:
-                print(f"Error in generate_docs: {str(e)}")
-                session_storage[session_id]['status'] = 'error'
-                session_storage[session_id]['error'] = str(e)
-                yield 'event: message\ndata: ' + json.dumps({
+                print(f"Error in generate: {str(e)}")
+                yield 'data: ' + json.dumps({
                     'status': 'error',
                     'error': str(e)
                 }) + '\n\n'
 
-        return Response(
-            generate_event_stream(),
-            mimetype='text/event-stream',
-            headers={
-                'Cache-Control': 'no-cache, no-transform',
-                'Connection': 'keep-alive',
-                'X-Accel-Buffering': 'no',
-                'Content-Type': 'text/event-stream',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type',
-                'Access-Control-Max-Age': '86400'  # Cache preflight request for 24 hours
-            }
+        response = Response(
+            generate(),
+            mimetype='text/event-stream'
         )
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Cache-Control', 'no-cache')
+        response.headers.add('Connection', 'keep-alive')
+        return response
 
     except Exception as e:
         print(f"Error in generate_progress_stream: {str(e)}")
-        return Response(
-            'event: message\ndata: ' + json.dumps({
-                'status': 'error',
-                'error': str(e)
-            }) + '\n\n',
-            mimetype='text/event-stream',
-            headers={
-                'Cache-Control': 'no-cache, no-transform',
-                'Content-Type': 'text/event-stream',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type'
-            }
-        )
+        return jsonify({'error': str(e)})
 
 @app.route('/check-progress/<session_id>')
 def check_progress(session_id):
