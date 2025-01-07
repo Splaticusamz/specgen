@@ -3,12 +3,22 @@ import json
 import google.generativeai as genai
 from anthropic import Anthropic
 from flask import Flask, request, jsonify, Response, send_file, send_from_directory, render_template
+from flask_cors import CORS
 from zipfile import ZipFile
 from io import BytesIO
 import time
 from collections import defaultdict
 
 app = Flask(__name__)
+CORS(app, resources={
+    r"/generate-progress/stream": {
+        "origins": "*",
+        "methods": ["GET", "OPTIONS"],
+        "allow_headers": ["Content-Type"],
+        "expose_headers": ["Content-Type"],
+        "supports_credentials": False
+    }
+})
 
 # In-memory storage for session data
 session_storage = defaultdict(dict)
@@ -466,6 +476,14 @@ def generate():
 
 @app.route('/generate-progress/stream')
 def generate_progress_stream():
+    if request.method == 'OPTIONS':
+        # Respond to preflight request
+        response = app.make_default_options_response()
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        return response
+
     try:
         # Get query parameters
         problem = request.args.get('problem', '')
@@ -495,7 +513,8 @@ def generate_progress_stream():
 
         def generate_event_stream():
             try:
-                # Send initial event
+                # Send initial event with retry directive
+                yield 'retry: 1000\n'  # Retry every 1 second if connection is lost
                 yield 'event: message\ndata: ' + json.dumps({'status': 'started', 'session_id': session_id, 'total': len(selected_docs)}) + '\n\n'
 
                 client = get_llm_client(api_key, using_gemini)
@@ -560,7 +579,9 @@ Generate comprehensive and well-structured documentation in markdown format."""
                 'X-Accel-Buffering': 'no',
                 'Content-Type': 'text/event-stream',
                 'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Headers': 'Content-Type'
+                'Access-Control-Allow-Methods': 'GET, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Max-Age': '86400'  # Cache preflight request for 24 hours
             }
         )
 
@@ -576,6 +597,7 @@ Generate comprehensive and well-structured documentation in markdown format."""
                 'Cache-Control': 'no-cache, no-transform',
                 'Content-Type': 'text/event-stream',
                 'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, OPTIONS',
                 'Access-Control-Allow-Headers': 'Content-Type'
             }
         )
