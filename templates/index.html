@@ -509,7 +509,7 @@
                 followUpAnswers: {},
                 finalNotes: '',
                 isLoading: false,
-                recommendedDocs: [],
+                recommendedDocs: ['cursorrules', 'prd', 'tech_stack'],
                 allDocsSelected: false,
                 generatedFile: null,
                 generationComplete: false,
@@ -662,8 +662,8 @@
 
                             const data = await response.json();
                             if (response.ok) {
-                                this.followUpQuestions = data.questions;
-                                this.recommendedDocs = data.recommended_docs;
+                                this.followUpQuestions = data.questions || [];
+                                this.recommendedDocs = data.recommended_docs || ['cursorrules', 'prd', 'tech_stack'];
                             } else {
                                 alert(data.error || 'Error getting follow-up questions');
                                 return;
@@ -696,7 +696,7 @@
 
                             const data = await response.json();
                             if (response.ok) {
-                                this.recommendedDocs = data.recommended_docs;
+                                this.recommendedDocs = data.recommended_docs || ['cursorrules', 'prd', 'tech_stack'];
                                 // Auto-select recommended documents
                                 this.$nextTick(() => {
                                     this.selectRecommendedOnly();
