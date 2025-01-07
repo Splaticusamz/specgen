@@ -505,12 +505,17 @@ def generate_progress_stream():
         with open(f'/tmp/sessions/{session_id}.json', 'w') as f:
             json.dump(data, f)
 
-        # Start background thread for generation
-        def generate_docs():
-            try:
-                client = get_llm_client(api_key, using_gemini)
-                for doc in selected_docs:
-                    prompt = f"""Generate content for {doc['id']} documentation.
+        def generate_event_stream():
+            # Send initial event
+            yield f"data: {json.dumps({'status': 'started', 'session_id': session_id, 'total': len(selected_docs)})}\n\n"
+
+            def generate_docs():
+                try:
+                    client = get_llm_client(api_key, using_gemini)
+                    completed = 0
+                    
+                    for doc in selected_docs:
+                        prompt = f"""Generate content for {doc['id']} documentation.
 Project context:
 Problem: {problem}
 Solution: {solution}
@@ -520,55 +525,71 @@ Final notes: {final_notes}
 
 Generate comprehensive and well-structured documentation in markdown format."""
 
-                    try:
-                        if using_gemini:
-                            content = generate_with_gemini(prompt)
-                        else:
-                            content = generate_with_claude(client, prompt)
+                        try:
+                            if using_gemini:
+                                content = generate_with_gemini(prompt)
+                            else:
+                                content = generate_with_claude(client, prompt)
 
-                        with open(f'/tmp/sessions/{session_id}_{doc["id"]}.md', 'w') as f:
-                            f.write(content)
+                            with open(f'/tmp/sessions/{session_id}_{doc["id"]}.md', 'w') as f:
+                                f.write(content)
 
-                        # Update progress
-                        with open(f'/tmp/sessions/{session_id}.json', 'r') as f:
-                            data = json.load(f)
-                        data['completed_docs'].append(doc['id'])
-                        with open(f'/tmp/sessions/{session_id}.json', 'w') as f:
-                            json.dump(data, f)
-                    except Exception as e:
-                        print(f"Error generating {doc['id']}: {str(e)}")
-                        continue
+                            completed += 1
+                            # Update progress in session file
+                            with open(f'/tmp/sessions/{session_id}.json', 'r') as f:
+                                data = json.load(f)
+                            data['completed_docs'].append(doc['id'])
+                            with open(f'/tmp/sessions/{session_id}.json', 'w') as f:
+                                json.dump(data, f)
 
-                # Mark as complete
-                with open(f'/tmp/sessions/{session_id}.json', 'r') as f:
-                    data = json.load(f)
-                data['status'] = 'complete'
-                with open(f'/tmp/sessions/{session_id}.json', 'w') as f:
-                    json.dump(data, f)
+                            # Send progress event
+                            yield f"data: {json.dumps({'status': 'progress', 'completed': completed, 'current_file': doc['id']})}\n\n"
 
-            except Exception as e:
-                print(f"Error in generate_docs: {str(e)}")
-                with open(f'/tmp/sessions/{session_id}.json', 'r') as f:
-                    data = json.load(f)
-                data['status'] = 'error'
-                data['error'] = str(e)
-                with open(f'/tmp/sessions/{session_id}.json', 'w') as f:
-                    json.dump(data, f)
+                        except Exception as e:
+                            print(f"Error generating {doc['id']}: {str(e)}")
+                            yield f"data: {json.dumps({'status': 'error', 'error': str(e)})}\n\n"
+                            return
 
-        import threading
-        thread = threading.Thread(target=generate_docs)
-        thread.start()
+                    # Send completion event
+                    yield f"data: {json.dumps({'status': 'complete'})}\n\n"
 
-        # Return session ID immediately
-        return jsonify({
-            'status': 'started',
-            'session_id': session_id,
-            'total': len(selected_docs)
-        })
+                    # Update session status
+                    with open(f'/tmp/sessions/{session_id}.json', 'r') as f:
+                        data = json.load(f)
+                    data['status'] = 'complete'
+                    with open(f'/tmp/sessions/{session_id}.json', 'w') as f:
+                        json.dump(data, f)
+
+                except Exception as e:
+                    print(f"Error in generate_docs: {str(e)}")
+                    yield f"data: {json.dumps({'status': 'error', 'error': str(e)})}\n\n"
+                    with open(f'/tmp/sessions/{session_id}.json', 'r') as f:
+                        data = json.load(f)
+                    data['status'] = 'error'
+                    data['error'] = str(e)
+                    with open(f'/tmp/sessions/{session_id}.json', 'w') as f:
+                        json.dump(data, f)
+
+            # Start the generation process
+            for event in generate_docs():
+                yield event
+
+        return Response(
+            generate_event_stream(),
+            mimetype='text/event-stream',
+            headers={
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
+                'X-Accel-Buffering': 'no'  # Disable buffering for nginx
+            }
+        )
 
     except Exception as e:
         print(f"Error in generate_progress_stream: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return Response(
+            f"data: {json.dumps({'status': 'error', 'error': str(e)})}\n\n",
+            mimetype='text/event-stream'
+        )
 
 @app.route('/check-progress/<session_id>')
 def check_progress(session_id):
