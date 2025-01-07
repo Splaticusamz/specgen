@@ -434,7 +434,7 @@ def generate():
 
         # Read session data
         try:
-            with open(f'sessions/{session_id}.json', 'r') as f:
+            with open(f'/tmp/sessions/{session_id}.json', 'r') as f:
                 session_data = json.load(f)
         except FileNotFoundError:
             return jsonify({'error': 'Session not found'})
@@ -445,7 +445,7 @@ def generate():
             for doc in session_data['selected_docs']:
                 doc_id = doc['id']
                 try:
-                    with open(f'sessions/{session_id}_{doc_id}.md', 'r') as f:
+                    with open(f'/tmp/sessions/{session_id}_{doc_id}.md', 'r') as f:
                         content = f.read()
                         zf.writestr(f"{doc_id}.md", content)
                 except FileNotFoundError:
@@ -454,10 +454,10 @@ def generate():
 
         # Clean up session files
         try:
-            os.remove(f'sessions/{session_id}.json')
+            os.remove(f'/tmp/sessions/{session_id}.json')
             for doc in session_data['selected_docs']:
                 try:
-                    os.remove(f'sessions/{session_id}_{doc["id"]}.md')
+                    os.remove(f'/tmp/sessions/{session_id}_{doc["id"]}.md')
                 except FileNotFoundError:
                     continue
         except Exception as e:

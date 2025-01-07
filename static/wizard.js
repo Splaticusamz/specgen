@@ -8,6 +8,11 @@ async function generateDocs() {
         const apiKey = document.getElementById('api-key').value;
         const usingGemini = document.getElementById('using-gemini').checked;
 
+        // Show progress bar
+        const progressBar = document.getElementById('progress-bar');
+        progressBar.style.width = '0%';
+        document.getElementById('generation-progress').classList.remove('hidden');
+
         // Start generation
         const response = await fetch(`/generate-progress/stream?problem=${encodeURIComponent(problem)}&solution=${encodeURIComponent(solution)}&follow_up_answers=${encodeURIComponent(JSON.stringify(followUpAnswers))}&selected_docs=${encodeURIComponent(JSON.stringify(selectedDocs))}&final_notes=${encodeURIComponent(finalNotes)}&api_key=${encodeURIComponent(apiKey)}&using_gemini=${usingGemini}`);
         
@@ -22,12 +27,6 @@ async function generateDocs() {
 
         const sessionId = data.session_id;
         const total = data.total;
-        let completed = 0;
-
-        // Update progress bar
-        const progressBar = document.getElementById('progress-bar');
-        progressBar.style.width = '0%';
-        document.getElementById('generation-progress').classList.remove('hidden');
 
         // Poll for progress
         while (true) {
@@ -41,7 +40,7 @@ async function generateDocs() {
                 throw new Error(progressData.error);
             }
 
-            completed = progressData.completed;
+            const completed = progressData.completed;
             const percentage = (completed / total) * 100;
             progressBar.style.width = `${percentage}%`;
 
