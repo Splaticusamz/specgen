@@ -476,43 +476,51 @@ def generate():
 
 @app.route('/generate-progress/stream')
 def generate_progress_stream():
-    # Get query parameters
-    problem = request.args.get('problem', '')
-    solution = request.args.get('solution', '')
-    follow_up_answers = json.loads(request.args.get('follow_up_answers', '{}'))
-    selected_docs = json.loads(request.args.get('selected_docs', '[]'))
-    final_notes = request.args.get('final_notes', '')
-    api_key = request.args.get('api_key', '')
-    using_gemini = request.args.get('using_gemini', 'false').lower() == 'true'
+    try:
+        # Get query parameters
+        problem = request.args.get('problem', '')
+        solution = request.args.get('solution', '')
+        follow_up_answers = json.loads(request.args.get('follow_up_answers', '{}'))
+        selected_docs = json.loads(request.args.get('selected_docs', '[]'))
+        final_notes = request.args.get('final_notes', '')
+        api_key = request.args.get('api_key', '')
+        using_gemini = request.args.get('using_gemini', 'false').lower() == 'true'
 
-    # Create a session ID and store data
-    session_id = str(time.time())
-    os.makedirs('sessions', exist_ok=True)
-    with open(f'sessions/{session_id}.json', 'w') as f:
-        json.dump({
-            'problem': problem,
-            'solution': solution,
-            'follow_up_answers': follow_up_answers,
-            'selected_docs': selected_docs,
-            'final_notes': final_notes,
-            'api_key': api_key,
-            'using_gemini': using_gemini
-        }, f)
-
-    def generate():
-        client = get_llm_client(api_key, using_gemini)
+        # Create session ID
+        session_id = str(time.time())
+        os.makedirs('sessions', exist_ok=True)
         
-        for i, doc in enumerate(selected_docs):
-            data = {
-                'status': 'progress',
-                'completed': i,
-                'total': len(selected_docs),
-                'current_file': doc['id']
-            }
-            yield f"data: {json.dumps(data)}\n\n"
-            
-            # Generate content
-            prompt = f"""Generate content for {doc['id']} documentation.
+        # Store session data
+        with open(f'sessions/{session_id}.json', 'w') as f:
+            json.dump({
+                'problem': problem,
+                'solution': solution,
+                'follow_up_answers': follow_up_answers,
+                'selected_docs': selected_docs,
+                'final_notes': final_notes,
+                'api_key': api_key,
+                'using_gemini': using_gemini
+            }, f)
+
+        print(f"Starting generation for session {session_id}")  # Debug log
+
+        def generate():
+            try:
+                client = get_llm_client(api_key, using_gemini)
+                
+                for i, doc in enumerate(selected_docs):
+                    print(f"Generating doc {i+1}/{len(selected_docs)}: {doc['id']}")  # Debug log
+                    
+                    data = {
+                        'status': 'progress',
+                        'completed': i,
+                        'total': len(selected_docs),
+                        'current_file': doc['id']
+                    }
+                    yield f"data: {json.dumps(data)}\n\n"
+                    
+                    # Generate content
+                    prompt = f"""Generate content for {doc['id']} documentation.
 Project context:
 Problem: {problem}
 Solution: {solution}
@@ -522,26 +530,35 @@ Final notes: {final_notes}
 
 Generate comprehensive and well-structured documentation in markdown format."""
 
-            try:
-                if using_gemini:
-                    content = generate_with_gemini(prompt)
-                else:
-                    content = generate_with_claude(client, prompt)
-                    
-                # Store generated content
-                with open(f'sessions/{session_id}_{doc["id"]}.md', 'w') as f:
-                    f.write(content)
-            except Exception as e:
-                print(f"Error generating {doc['id']}: {str(e)}")
-                continue
-        
-        # Store session ID for ZIP generation
-        with open(f'sessions/{session_id}_complete', 'w') as f:
-            f.write('done')
-            
-        yield f"data: {json.dumps({'status': 'complete', 'session_id': session_id})}\n\n"
+                    try:
+                        if using_gemini:
+                            content = generate_with_gemini(prompt)
+                        else:
+                            content = generate_with_claude(client, prompt)
+                            
+                        print(f"Generated content for {doc['id']}")  # Debug log
+                        
+                        # Store generated content with session ID
+                        with open(f'sessions/{session_id}_{doc["id"]}.md', 'w') as f:
+                            f.write(content)
+                            
+                    except Exception as e:
+                        print(f"Error generating {doc['id']}: {str(e)}")  # Debug log
+                        yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
+                        continue
+                
+                print("Generation complete")  # Debug log
+                yield f"data: {json.dumps({'status': 'complete', 'session_id': session_id})}\n\n"
 
-    return Response(generate(), mimetype='text/event-stream')
+            except Exception as e:
+                print(f"Error in generate(): {str(e)}")  # Debug log
+                yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
+
+        return Response(generate(), mimetype='text/event-stream')
+        
+    except Exception as e:
+        print(f"Error in generate_progress_stream: {str(e)}")  # Debug log
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000) 
