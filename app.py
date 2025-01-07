@@ -486,9 +486,9 @@ def generate_progress_stream():
         api_key = request.args.get('api_key', '')
         using_gemini = request.args.get('using_gemini', 'false').lower() == 'true'
 
-        # Create session
+        # Create session in /tmp
         session_id = str(time.time())
-        os.makedirs('sessions', exist_ok=True)
+        os.makedirs('/tmp/sessions', exist_ok=True)
 
         # Store initial session data
         data = {
@@ -502,7 +502,7 @@ def generate_progress_stream():
             'completed_docs': [],
             'status': 'in_progress'
         }
-        with open(f'sessions/{session_id}.json', 'w') as f:
+        with open(f'/tmp/sessions/{session_id}.json', 'w') as f:
             json.dump(data, f)
 
         # Start background thread for generation
@@ -526,33 +526,33 @@ Generate comprehensive and well-structured documentation in markdown format."""
                         else:
                             content = generate_with_claude(client, prompt)
 
-                        with open(f'sessions/{session_id}_{doc["id"]}.md', 'w') as f:
+                        with open(f'/tmp/sessions/{session_id}_{doc["id"]}.md', 'w') as f:
                             f.write(content)
 
                         # Update progress
-                        with open(f'sessions/{session_id}.json', 'r') as f:
+                        with open(f'/tmp/sessions/{session_id}.json', 'r') as f:
                             data = json.load(f)
                         data['completed_docs'].append(doc['id'])
-                        with open(f'sessions/{session_id}.json', 'w') as f:
+                        with open(f'/tmp/sessions/{session_id}.json', 'w') as f:
                             json.dump(data, f)
                     except Exception as e:
                         print(f"Error generating {doc['id']}: {str(e)}")
                         continue
 
                 # Mark as complete
-                with open(f'sessions/{session_id}.json', 'r') as f:
+                with open(f'/tmp/sessions/{session_id}.json', 'r') as f:
                     data = json.load(f)
                 data['status'] = 'complete'
-                with open(f'sessions/{session_id}.json', 'w') as f:
+                with open(f'/tmp/sessions/{session_id}.json', 'w') as f:
                     json.dump(data, f)
 
             except Exception as e:
                 print(f"Error in generate_docs: {str(e)}")
-                with open(f'sessions/{session_id}.json', 'r') as f:
+                with open(f'/tmp/sessions/{session_id}.json', 'r') as f:
                     data = json.load(f)
                 data['status'] = 'error'
                 data['error'] = str(e)
-                with open(f'sessions/{session_id}.json', 'w') as f:
+                with open(f'/tmp/sessions/{session_id}.json', 'w') as f:
                     json.dump(data, f)
 
         import threading
@@ -573,7 +573,7 @@ Generate comprehensive and well-structured documentation in markdown format."""
 @app.route('/check-progress/<session_id>')
 def check_progress(session_id):
     try:
-        with open(f'sessions/{session_id}.json', 'r') as f:
+        with open(f'/tmp/sessions/{session_id}.json', 'r') as f:
             data = json.load(f)
         
         return jsonify({
