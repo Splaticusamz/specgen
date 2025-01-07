@@ -557,22 +557,13 @@
                     this.usingGemini = false;
                     this.apiKeyValidated = true;
                     
-                    // Set a special API key value to indicate Deepseek usage
-                    const apiKeyInput = document.getElementById('api-key');
-                    apiKeyInput.value = 'USING_DEEPSEEK';
-                    apiKeyInput.style.display = 'none';
-                    
-                    // Hide the validate button
-                    const validateBtn = document.getElementById('validate-btn');
-                    if (validateBtn) validateBtn.style.display = 'none';
-                    
                     // Reset any existing state
                     this.followUpQuestions = [];
                     this.followUpAnswers = {};
                     this.recommendedDocs = ['cursorrules', 'prd', 'tech_stack'];
                     
                     // Automatically proceed to next step
-                    this.handleNext();
+                    this.currentStep++;
                 },
 
                 useGemini() {
@@ -580,22 +571,13 @@
                     this.usingDeepseek = false;
                     this.apiKeyValidated = true;
                     
-                    // Set a special API key value to indicate Gemini usage
-                    const apiKeyInput = document.getElementById('api-key');
-                    apiKeyInput.value = 'USING_GEMINI';
-                    apiKeyInput.style.display = 'none';
-                    
-                    // Hide the validate button
-                    const validateBtn = document.getElementById('validate-btn');
-                    if (validateBtn) validateBtn.style.display = 'none';
-                    
                     // Reset any existing state
                     this.followUpQuestions = [];
                     this.followUpAnswers = {};
                     this.recommendedDocs = ['cursorrules', 'prd', 'tech_stack'];
                     
                     // Automatically proceed to next step
-                    this.handleNext();
+                    this.currentStep++;
                 },
 
                 async validateApiKey() {
