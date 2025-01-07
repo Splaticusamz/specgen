@@ -786,7 +786,7 @@
                             follow_up_answers: this.followUpAnswers,
                             selected_docs: selectedDocs,
                             final_notes: this.finalNotes,
-                            api_key: document.getElementById('api-key').value,
+                            api_key: this.usingGemini ? 'USING_GEMINI' : (this.usingDeepseek ? 'USING_DEEPSEEK' : document.getElementById('api-key')?.value),
                             using_gemini: this.usingGemini,
                             using_deepseek: this.usingDeepseek
                         };
