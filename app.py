@@ -474,5 +474,31 @@ def generate():
     except Exception as e:
         return jsonify({'error': str(e)})
 
+@app.route('/generate-progress/stream')
+def generate_progress_stream():
+    # Get query parameters
+    problem = request.args.get('problem', '')
+    solution = request.args.get('solution', '')
+    follow_up_answers = json.loads(request.args.get('follow_up_answers', '{}'))
+    selected_docs = json.loads(request.args.get('selected_docs', '[]'))
+    final_notes = request.args.get('final_notes', '')
+    api_key = request.args.get('api_key', '')
+    using_gemini = request.args.get('using_gemini', 'false').lower() == 'true'
+
+    def generate():
+        for i, doc in enumerate(selected_docs):
+            data = {
+                'status': 'progress',
+                'completed': i,
+                'total': len(selected_docs),
+                'current_file': doc['id']
+            }
+            yield f"data: {json.dumps(data)}\n\n"
+            time.sleep(1)  # Simulate work
+        
+        yield f"data: {json.dumps({'status': 'complete'})}\n\n"
+
+    return Response(generate(), mimetype='text/event-stream')
+
 if __name__ == '__main__':
     app.run(debug=True, port=5000) 
