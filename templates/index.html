@@ -96,9 +96,9 @@
     <div class="container mx-auto px-4 py-8 max-w-3xl">
         <!-- Header -->
         <div class="flex justify-between items-center mb-8">
-            <h1 class="text-3xl font-bold transition-colors duration-200" :class="{ 'text-white': darkMode, 'text-gray-800': !darkMode }">
+            <a href="/" class="text-3xl font-bold transition-colors duration-200 hover:opacity-80" :class="{ 'text-white': darkMode, 'text-gray-800': !darkMode }">
                 <span class="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500">SpecGen</span>
-            </h1>
+            </a>
             <button @click="darkMode = !darkMode; localStorage.setItem('darkMode', darkMode)" 
                     class="p-2 rounded-lg transition-colors duration-200"
                     :class="{ 'bg-gray-700 text-white hover:bg-gray-600': darkMode, 'bg-gray-200 text-gray-800 hover:bg-gray-300': !darkMode }">
