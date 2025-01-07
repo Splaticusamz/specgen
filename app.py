@@ -494,16 +494,15 @@ def generate_progress_stream():
         }
 
         def generate_event_stream():
-            # Send initial event
-            yield f"data: {json.dumps({'status': 'started', 'session_id': session_id, 'total': len(selected_docs)})}\n\n"
+            try:
+                # Send initial event
+                yield 'event: message\ndata: ' + json.dumps({'status': 'started', 'session_id': session_id, 'total': len(selected_docs)}) + '\n\n'
 
-            def generate_docs():
-                try:
-                    client = get_llm_client(api_key, using_gemini)
-                    completed = 0
-                    
-                    for doc in selected_docs:
-                        prompt = f"""Generate content for {doc['id']} documentation.
+                client = get_llm_client(api_key, using_gemini)
+                completed = 0
+                
+                for doc in selected_docs:
+                    prompt = f"""Generate content for {doc['id']} documentation.
 Project context:
 Problem: {problem}
 Solution: {solution}
@@ -513,58 +512,71 @@ Final notes: {final_notes}
 
 Generate comprehensive and well-structured documentation in markdown format."""
 
-                        try:
-                            if using_gemini:
-                                content = generate_with_gemini(prompt)
-                            else:
-                                content = generate_with_claude(client, prompt)
+                    try:
+                        if using_gemini:
+                            content = generate_with_gemini(prompt)
+                        else:
+                            content = generate_with_claude(client, prompt)
 
-                            # Store content in memory
-                            session_storage[session_id]['generated_content'][doc['id']] = content
-                            completed += 1
-                            session_storage[session_id]['completed_docs'].append(doc['id'])
+                        # Store content in memory
+                        session_storage[session_id]['generated_content'][doc['id']] = content
+                        completed += 1
+                        session_storage[session_id]['completed_docs'].append(doc['id'])
 
-                            # Send progress event
-                            yield f"data: {json.dumps({'status': 'progress', 'completed': completed, 'current_file': doc['id']})}\n\n"
+                        # Send progress event
+                        yield 'event: message\ndata: ' + json.dumps({
+                            'status': 'progress',
+                            'completed': completed,
+                            'current_file': doc['id']
+                        }) + '\n\n'
 
-                        except Exception as e:
-                            print(f"Error generating {doc['id']}: {str(e)}")
-                            yield f"data: {json.dumps({'status': 'error', 'error': str(e)})}\n\n"
-                            return
+                    except Exception as e:
+                        print(f"Error generating {doc['id']}: {str(e)}")
+                        yield 'event: message\ndata: ' + json.dumps({
+                            'status': 'error',
+                            'error': str(e)
+                        }) + '\n\n'
+                        return
 
-                    # Send completion event
-                    yield f"data: {json.dumps({'status': 'complete'})}\n\n"
-                    session_storage[session_id]['status'] = 'complete'
+                # Send completion event
+                session_storage[session_id]['status'] = 'complete'
+                yield 'event: message\ndata: ' + json.dumps({'status': 'complete'}) + '\n\n'
 
-                except Exception as e:
-                    print(f"Error in generate_docs: {str(e)}")
-                    yield f"data: {json.dumps({'status': 'error', 'error': str(e)})}\n\n"
-                    session_storage[session_id]['status'] = 'error'
-                    session_storage[session_id]['error'] = str(e)
-
-            # Start the generation process
-            for event in generate_docs():
-                yield event
+            except Exception as e:
+                print(f"Error in generate_docs: {str(e)}")
+                session_storage[session_id]['status'] = 'error'
+                session_storage[session_id]['error'] = str(e)
+                yield 'event: message\ndata: ' + json.dumps({
+                    'status': 'error',
+                    'error': str(e)
+                }) + '\n\n'
 
         return Response(
             generate_event_stream(),
             mimetype='text/event-stream',
             headers={
-                'Cache-Control': 'no-cache',
+                'Cache-Control': 'no-cache, no-transform',
                 'Connection': 'keep-alive',
-                'X-Accel-Buffering': 'no',  # Disable buffering for nginx
+                'X-Accel-Buffering': 'no',
                 'Content-Type': 'text/event-stream',
-                'Access-Control-Allow-Origin': '*'  # Allow CORS
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type'
             }
         )
 
     except Exception as e:
         print(f"Error in generate_progress_stream: {str(e)}")
         return Response(
-            f"data: {json.dumps({'status': 'error', 'error': str(e)})}\n\n",
+            'event: message\ndata: ' + json.dumps({
+                'status': 'error',
+                'error': str(e)
+            }) + '\n\n',
             mimetype='text/event-stream',
             headers={
-                'Access-Control-Allow-Origin': '*'  # Allow CORS
+                'Cache-Control': 'no-cache, no-transform',
+                'Content-Type': 'text/event-stream',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type'
             }
         )
 
