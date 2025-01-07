@@ -340,163 +340,37 @@ def store_generation_data():
 def start_generation():
     try:
         data = request.json
+        problem = data.get('problem', '')
+        solution = data.get('solution', '')
+        follow_up_answers = data.get('follow_up_answers', {})
+        selected_docs = data.get('selected_docs', [])
+        final_notes = data.get('final_notes', '')
+        api_key = data.get('api_key', '')
+        using_gemini = data.get('using_gemini', False)
+
         session_id = str(time.time())
-        
-        # Store data in session file
-        os.makedirs('sessions', exist_ok=True)
-        with open(f'sessions/{session_id}.json', 'w') as f:
-            json.dump(data, f)
-            
-        # Start generation in a background thread
-        import threading
-        thread = threading.Thread(target=generate_docs_in_background, args=(session_id,))
-        thread.start()
-        
-        return jsonify({'session_id': session_id})
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-@app.route('/generation-status/<session_id>')
-def generation_status(session_id):
-    try:
-        # Check progress file
-        try:
-            with open(f'sessions/{session_id}_progress.json', 'r') as f:
-                status = json.load(f)
-            return jsonify(status)
-        except FileNotFoundError:
-            return jsonify({'status': 'initializing'})
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)})
-
-def generate_docs_in_background(session_id):
-    try:
-        # Read session data
-        with open(f'sessions/{session_id}.json', 'r') as f:
-            data = json.load(f)
-        
-        # Get client
-        client = get_llm_client(data['api_key'], data['using_gemini'])
-        total_docs = len(data['selected_docs'])
-        
-        # Generate documents
-        for i, doc in enumerate(data['selected_docs'], 1):
-            # Update progress
-            progress = {
-                'status': 'progress',
-                'completed': i,
-                'total': total_docs,
-                'current_file': doc['id']
-            }
-            with open(f'sessions/{session_id}_progress.json', 'w') as f:
-                json.dump(progress, f)
-            
-            # Generate content
-            prompt = f"""Generate content for {doc['id']} documentation.
-Project context:
-Problem: {data['problem']}
-Solution: {data['solution']}
-Additional input: {doc.get('optional_input', '')}
-Follow-up answers: {json.dumps(data['follow_up_answers'])}
-Final notes: {data['final_notes']}
-
-Generate comprehensive and well-structured documentation in markdown format."""
-
-            try:
-                if data['using_gemini']:
-                    content = generate_with_gemini(prompt)
-                else:
-                    content = generate_with_claude(client, prompt)
-                    
-                # Store generated content
-                with open(f'sessions/{session_id}_{doc["id"]}.md', 'w') as f:
-                    f.write(content)
-                    
-            except Exception as e:
-                error_status = {
-                    'status': 'error',
-                    'message': f'Error generating {doc["id"]}: {str(e)}'
-                }
-                with open(f'sessions/{session_id}_progress.json', 'w') as f:
-                    json.dump(error_status, f)
-                return
-        
-        # Mark as complete
-        complete_status = {
-            'status': 'complete',
-            'session_id': session_id
+        session_storage[session_id] = {
+            'problem': problem,
+            'solution': solution,
+            'follow_up_answers': follow_up_answers,
+            'selected_docs': selected_docs,
+            'final_notes': final_notes,
+            'api_key': api_key,
+            'using_gemini': using_gemini,
+            'completed_docs': [],
+            'generated_content': {},
+            'status': 'in_progress',
+            'total': len(selected_docs),
+            'completed': 0,
+            'current_file': ''
         }
-        with open(f'sessions/{session_id}_progress.json', 'w') as f:
-            json.dump(complete_status, f)
-            
-    except Exception as e:
-        error_status = {
-            'status': 'error',
-            'message': str(e)
-        }
-        with open(f'sessions/{session_id}_progress.json', 'w') as f:
-            json.dump(error_status, f)
 
-@app.route('/generate', methods=['POST'])
-def generate():
-    try:
-        data = request.json
-        session_id = data.get('session_id')
-        
-        if not session_id:
-            return jsonify({'error': 'No session ID provided'})
-
-        if session_id not in session_storage:
-            return jsonify({'error': 'Session not found'})
-
-        session_data = session_storage[session_id]
-        
-        # Create ZIP file with generated documents
-        memory_file = BytesIO()
-        with ZipFile(memory_file, 'w') as zf:
-            for doc in session_data['selected_docs']:
-                doc_id = doc['id']
-                if doc_id in session_data['generated_content']:
-                    content = session_data['generated_content'][doc_id]
-                    zf.writestr(f"{doc_id}.md", content)
-
-        # Clean up session data
-        del session_storage[session_id]
-
-        memory_file.seek(0)
-        return send_file(
-            memory_file,
-            mimetype='application/zip',
-            as_attachment=True,
-            download_name='project_docs.zip'
-        )
-
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-@app.route('/generate-progress/stream')
-def generate_progress_stream():
-    try:
-        # Get query parameters
-        problem = request.args.get('problem', '')
-        solution = request.args.get('solution', '')
-        follow_up_answers = json.loads(request.args.get('follow_up_answers', '{}'))
-        selected_docs = json.loads(request.args.get('selected_docs', '[]'))
-        final_notes = request.args.get('final_notes', '')
-        api_key = request.args.get('api_key', '')
-        using_gemini = request.args.get('using_gemini', 'false').lower() == 'true'
-
-        # Create session
-        session_id = str(time.time())
-        
-        def generate():
+        def generate_docs():
             try:
-                yield 'data: ' + json.dumps({'status': 'started', 'session_id': session_id, 'total': len(selected_docs)}) + '\n\n'
-
                 client = get_llm_client(api_key, using_gemini)
-                completed = 0
                 
                 for doc in selected_docs:
+                    session_storage[session_id]['current_file'] = doc['id']
                     prompt = f"""Generate content for {doc['id']} documentation.
 Project context:
 Problem: {problem}
@@ -513,41 +387,36 @@ Generate comprehensive and well-structured documentation in markdown format."""
                         else:
                             content = generate_with_claude(client, prompt)
 
-                        completed += 1
-                        yield 'data: ' + json.dumps({
-                            'status': 'progress',
-                            'completed': completed,
-                            'current_file': doc['id']
-                        }) + '\n\n'
+                        session_storage[session_id]['generated_content'][doc['id']] = content
+                        session_storage[session_id]['completed_docs'].append(doc['id'])
+                        session_storage[session_id]['completed'] += 1
 
                     except Exception as e:
                         print(f"Error generating {doc['id']}: {str(e)}")
-                        yield 'data: ' + json.dumps({
-                            'status': 'error',
-                            'error': str(e)
-                        }) + '\n\n'
+                        session_storage[session_id]['status'] = 'error'
+                        session_storage[session_id]['error'] = str(e)
                         return
 
-                yield 'data: ' + json.dumps({'status': 'complete'}) + '\n\n'
+                session_storage[session_id]['status'] = 'complete'
 
             except Exception as e:
-                print(f"Error in generate: {str(e)}")
-                yield 'data: ' + json.dumps({
-                    'status': 'error',
-                    'error': str(e)
-                }) + '\n\n'
+                print(f"Error in generate_docs: {str(e)}")
+                session_storage[session_id]['status'] = 'error'
+                session_storage[session_id]['error'] = str(e)
 
-        response = Response(
-            generate(),
-            mimetype='text/event-stream'
-        )
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Cache-Control', 'no-cache')
-        response.headers.add('Connection', 'keep-alive')
-        return response
+        # Start generation in background
+        import threading
+        thread = threading.Thread(target=generate_docs)
+        thread.start()
+
+        return jsonify({
+            'status': 'started',
+            'session_id': session_id,
+            'total': len(selected_docs)
+        })
 
     except Exception as e:
-        print(f"Error in generate_progress_stream: {str(e)}")
+        print(f"Error in start_generation: {str(e)}")
         return jsonify({'error': str(e)})
 
 @app.route('/check-progress/<session_id>')
@@ -559,8 +428,9 @@ def check_progress(session_id):
         data = session_storage[session_id]
         return jsonify({
             'status': data.get('status', 'unknown'),
-            'completed': len(data.get('completed_docs', [])),
-            'total': len(data.get('selected_docs', [])),
+            'completed': data.get('completed', 0),
+            'total': data.get('total', 0),
+            'current_file': data.get('current_file', ''),
             'error': data.get('error')
         })
 
