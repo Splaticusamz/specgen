@@ -476,6 +476,10 @@ Respond only with a JSON object in this exact format:
         print(f"Deepseek error: {str(e)}")
         raise Exception(f"Error with Deepseek: {str(e)}")
 
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory('static', 'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
 @app.route('/')
 def landing():
     return render_template('landing.html')
