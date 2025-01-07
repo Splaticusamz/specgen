@@ -100,12 +100,25 @@
             <a href="/" class="text-3xl font-bold transition-colors duration-200 hover:opacity-80" :class="{ 'text-white': darkMode, 'text-gray-800': !darkMode }">
                 <span class="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500">SpecGen</span>
             </a>
-            <button @click="darkMode = !darkMode; localStorage.setItem('darkMode', darkMode)" 
-                    class="p-2 rounded-lg transition-colors duration-200"
-                    :class="{ 'bg-gray-700 text-white hover:bg-gray-600': darkMode, 'bg-gray-200 text-gray-800 hover:bg-gray-300': !darkMode }">
-                <span x-show="!darkMode" x-cloak>🌙</span>
-                <span x-show="darkMode" x-cloak>☀️</span>
-            </button>
+            <div class="flex items-center gap-4">
+                <!-- Model Indicator -->
+                <div x-show="usingGemini || usingDeepseek" 
+                     class="px-3 py-1 rounded-full text-sm font-medium"
+                     :class="{ 
+                         'bg-blue-100 text-blue-800': !darkMode && usingGemini,
+                         'bg-purple-100 text-purple-800': !darkMode && usingDeepseek,
+                         'bg-blue-900 text-blue-100': darkMode && usingGemini,
+                         'bg-purple-900 text-purple-100': darkMode && usingDeepseek
+                     }">
+                    <span x-text="usingGemini ? 'Using Gemini' : 'Using Deepseek'"></span>
+                </div>
+                <button @click="darkMode = !darkMode; localStorage.setItem('darkMode', darkMode)" 
+                        class="p-2 rounded-lg transition-colors duration-200"
+                        :class="{ 'bg-gray-700 text-white hover:bg-gray-600': darkMode, 'bg-gray-200 text-gray-800 hover:bg-gray-300': !darkMode }">
+                    <span x-show="!darkMode" x-cloak>🌙</span>
+                    <span x-show="darkMode" x-cloak>☀️</span>
+                </button>
+            </div>
         </div>
 
         <!-- Main Content -->
@@ -543,9 +556,6 @@
                     this.usingDeepseek = true;
                     this.usingGemini = false;
                     this.apiKeyValidated = true;
-                    const statusEl = document.getElementById('api-status');
-                    statusEl.textContent = '✅ Using Deepseek (Free)';
-                    statusEl.className = 'mt-2 text-sm text-green-500';
                     
                     // Set a special API key value to indicate Deepseek usage
                     const apiKeyInput = document.getElementById('api-key');
@@ -554,7 +564,7 @@
                     
                     // Hide the validate button
                     const validateBtn = document.getElementById('validate-btn');
-                    validateBtn.style.display = 'none';
+                    if (validateBtn) validateBtn.style.display = 'none';
                     
                     // Reset any existing state
                     this.followUpQuestions = [];
@@ -562,16 +572,13 @@
                     this.recommendedDocs = ['cursorrules', 'prd', 'tech_stack'];
                     
                     // Automatically proceed to next step
-                    this.currentStep = 2;
+                    this.handleNext();
                 },
 
                 useGemini() {
                     this.usingGemini = true;
                     this.usingDeepseek = false;
                     this.apiKeyValidated = true;
-                    const statusEl = document.getElementById('api-status');
-                    statusEl.textContent = '✅ Using Gemini (Free Tier)';
-                    statusEl.className = 'mt-2 text-sm text-green-500';
                     
                     // Set a special API key value to indicate Gemini usage
                     const apiKeyInput = document.getElementById('api-key');
@@ -580,10 +587,15 @@
                     
                     // Hide the validate button
                     const validateBtn = document.getElementById('validate-btn');
-                    validateBtn.style.display = 'none';
+                    if (validateBtn) validateBtn.style.display = 'none';
+                    
+                    // Reset any existing state
+                    this.followUpQuestions = [];
+                    this.followUpAnswers = {};
+                    this.recommendedDocs = ['cursorrules', 'prd', 'tech_stack'];
                     
                     // Automatically proceed to next step
-                    this.currentStep++;
+                    this.handleNext();
                 },
 
                 async validateApiKey() {
