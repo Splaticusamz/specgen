@@ -203,46 +203,6 @@
                                     ✓ Fast response times
                                 </div>
                             </div>
-
-                            <div class="relative">
-                                <div class="absolute inset-0 flex items-center" aria-hidden="true">
-                                    <div class="w-full border-t" :class="{ 'border-gray-600': darkMode, 'border-gray-300': !darkMode }"></div>
-                                </div>
-                                <div class="relative flex justify-center text-sm">
-                                    <span class="px-2 text-sm" :class="{ 'bg-gray-800 text-gray-300': darkMode, 'bg-white text-gray-500': !darkMode }">
-                                        OR
-                                    </span>
-                                </div>
-                            </div>
-
-                            <!-- Claude Option -->
-                            <div class="mt-8 p-4 rounded-lg transition-colors duration-200" 
-                                 :class="{ 'bg-gray-700': darkMode, 'bg-gray-100': !darkMode }">
-                                <div class="mb-4">
-                                    <h3 class="text-lg font-medium">Anthropic Claude (Premium)</h3>
-                                    <p class="text-sm mt-1" :class="{ 'text-gray-300': darkMode, 'text-gray-600': !darkMode }">
-                                        Use your own Claude API key for premium quality
-                                    </p>
-                                </div>
-                                <div class="flex space-x-2">
-                                    <input type="password" 
-                                           id="api-key" 
-                                           class="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 transition-colors duration-200"
-                                           :class="{ 'bg-gray-600 text-white': darkMode, 'bg-white': !darkMode }"
-                                           placeholder="sk-ant-...">
-                                    <button @click="validateApiKey()"
-                                            id="validate-btn"
-                                            class="px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                                        Validate
-                                    </button>
-                                </div>
-                                <p id="api-status" class="mt-2 text-sm"></p>
-                                <div class="mt-4 text-sm" :class="{ 'text-gray-300': darkMode, 'text-gray-600': !darkMode }">
-                                    ✓ Highest quality output<br>
-                                    ✓ Better context understanding<br>
-                                    ✓ More consistent results
-                                </div>
-                            </div>
                         </div>
                     </div>
                 </div>
