@@ -651,6 +651,9 @@
                         this.isLoading = true;
                         // Get follow-up questions
                         try {
+                            const controller = new AbortController();
+                            const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
                             const response = await fetch('/get-follow-up', {
                                 method: 'POST',
                                 headers: {
@@ -662,22 +665,35 @@
                                     api_key: this.usingGemini ? 'USING_GEMINI' : (this.usingDeepseek ? 'USING_DEEPSEEK' : document.getElementById('api-key').value),
                                     using_gemini: this.usingGemini,
                                     using_deepseek: this.usingDeepseek
-                                })
+                                }),
+                                signal: controller.signal
                             });
 
-                            const data = await response.json();
-                            if (response.ok) {
-                                this.followUpQuestions = data.questions || [];
-                                this.recommendedDocs = data.recommended_docs || ['cursorrules', 'prd', 'tech_stack'];
-                                this.currentStep++;
-                            } else {
-                                this.errorMessage = data.error || 'Error getting follow-up questions';
-                                return;
+                            clearTimeout(timeoutId);
+
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! status: ${response.status}`);
                             }
+
+                            const data = await response.json();
+                            this.followUpQuestions = data.questions || [];
+                            this.recommendedDocs = data.recommended_docs || ['cursorrules', 'prd', 'tech_stack'];
+                            this.currentStep++;
                         } catch (error) {
                             console.error('Error:', error);
-                            this.errorMessage = 'Error getting follow-up questions';
-                            return;
+                            if (error.name === 'AbortError') {
+                                this.errorMessage = 'Request timed out. Using default questions.';
+                                // Use default values and continue
+                                this.followUpQuestions = [
+                                    {"id": "q1", "question": "What are the key technical constraints or requirements for this project?"},
+                                    {"id": "q2", "question": "What is the expected scale and performance requirements?"},
+                                    {"id": "q3", "question": "What are the critical integration points in the system?"}
+                                ];
+                                this.recommendedDocs = ['cursorrules', 'prd', 'tech_stack'];
+                                this.currentStep++;
+                            } else {
+                                this.errorMessage = 'Error getting follow-up questions. Please try again.';
+                            }
                         } finally {
                             this.isLoading = false;
                         }
@@ -687,6 +703,9 @@
                     if (this.currentStep === 3) {
                         this.isLoading = true;
                         try {
+                            const controller = new AbortController();
+                            const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
                             const response = await fetch('/get-follow-up', {
                                 method: 'POST',
                                 headers: {
@@ -699,25 +718,36 @@
                                     api_key: this.usingGemini ? 'USING_GEMINI' : (this.usingDeepseek ? 'USING_DEEPSEEK' : document.getElementById('api-key').value),
                                     using_gemini: this.usingGemini,
                                     using_deepseek: this.usingDeepseek
-                                })
+                                }),
+                                signal: controller.signal
                             });
 
+                            clearTimeout(timeoutId);
+
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! status: ${response.status}`);
+                            }
+
                             const data = await response.json();
-                            if (response.ok) {
-                                this.recommendedDocs = data.recommended_docs || ['cursorrules', 'prd', 'tech_stack'];
-                                // Auto-select recommended documents
+                            this.recommendedDocs = data.recommended_docs || ['cursorrules', 'prd', 'tech_stack'];
+                            // Auto-select recommended documents
+                            this.$nextTick(() => {
+                                this.selectRecommendedOnly();
+                            });
+                            this.currentStep++;
+                        } catch (error) {
+                            console.error('Error:', error);
+                            if (error.name === 'AbortError') {
+                                this.errorMessage = 'Request timed out. Using default recommendations.';
+                                // Use default values and continue
+                                this.recommendedDocs = ['cursorrules', 'prd', 'tech_stack'];
                                 this.$nextTick(() => {
                                     this.selectRecommendedOnly();
                                 });
                                 this.currentStep++;
                             } else {
-                                this.errorMessage = data.error || 'Error analyzing project requirements';
-                                return;
+                                this.errorMessage = 'Error analyzing project requirements. Please try again.';
                             }
-                        } catch (error) {
-                            console.error('Error:', error);
-                            this.errorMessage = 'Error analyzing project requirements';
-                            return;
                         } finally {
                             this.isLoading = false;
                         }

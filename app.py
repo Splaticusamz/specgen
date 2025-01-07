@@ -513,74 +513,79 @@ def validate_api_key():
 @app.route('/get-follow-up', methods=['POST'])
 def get_follow_up():
     print("Received get-follow-up request")
-    data = request.json
-    api_key = data.get('api_key')
-    using_gemini = data.get('using_gemini', False)
-    using_deepseek = data.get('using_deepseek', False)
-    
-    print(f"Request params: using_gemini={using_gemini}, using_deepseek={using_deepseek}")
-    
-    if not api_key and not using_gemini and not using_deepseek:
-        print("No API key or model selection provided")
-        return jsonify({'error': 'API Key is empty'})
-
     try:
-        # Use the appropriate function based on the LLM
-        if using_gemini:
-            print("Using Gemini for follow-up questions")
-            client = get_llm_client(api_key, using_gemini)
-            response_text = get_follow_up_questions_gemini(client, data.get('problem', ''), data.get('solution', ''))
-        elif using_deepseek:
-            print("Using Deepseek for follow-up questions")
-            response_text = get_follow_up_questions_deepseek(data.get('problem', ''), data.get('solution', ''))
-        else:
-            print("Using Claude for follow-up questions")
-            client = get_llm_client(api_key, using_gemini)
-            response_text = get_follow_up_questions_claude(client, data.get('problem', ''), data.get('solution', ''))
+        data = request.json
+        api_key = data.get('api_key')
+        using_gemini = data.get('using_gemini', False)
+        using_deepseek = data.get('using_deepseek', False)
+        
+        print(f"Request params: using_gemini={using_gemini}, using_deepseek={using_deepseek}")
+        
+        if not api_key and not using_gemini and not using_deepseek:
+            print("No API key or model selection provided")
+            return jsonify({'error': 'API Key is empty'})
 
-        print(f"Got response text: {response_text[:100]}...")
+        # Default response in case of timeout or error
+        default_response = {
+            'questions': [
+                {"id": "q1", "question": "What are the key technical constraints or requirements for this project?"},
+                {"id": "q2", "question": "What is the expected scale and performance requirements?"},
+                {"id": "q3", "question": "What are the critical integration points in the system?"}
+            ],
+            'recommended_docs': ['cursorrules', 'prd', 'tech_stack']
+        }
 
-        # Parse the response
         try:
-            response_data = json.loads(response_text)
-            print("Successfully parsed response JSON")
-            
-            # Ensure exactly 3 questions
-            if len(response_data.get('questions', [])) > 3:
-                print("Trimming questions to exactly 3")
-                response_data['questions'] = response_data['questions'][:3]
-            elif len(response_data.get('questions', [])) < 3:
-                print("Adding default questions to reach 3")
-                default_questions = [
-                    {"id": "q1", "question": "What are the key technical constraints or requirements for this project?"},
-                    {"id": "q2", "question": "What is the expected scale and performance requirements?"},
-                    {"id": "q3", "question": "What are the critical integration points in the system?"}
-                ]
-                response_data['questions'].extend(default_questions[len(response_data['questions']):])
-            
-            # Ensure recommended_docs exists and is not empty
-            if 'recommended_docs' not in response_data or not response_data['recommended_docs']:
-                print("Adding default recommended_docs")
-                response_data['recommended_docs'] = ['cursorrules', 'prd', 'tech_stack']
-            
-            return jsonify(response_data)
-        except json.JSONDecodeError as e:
-            print(f"Error parsing response: {str(e)}")
-            print(f"Response text: {response_text}")
-            # Return a minimal fallback with project-focused questions
-            return jsonify({
-                'questions': [
-                    {"id": "q1", "question": "What are the key technical constraints or requirements for this project?"},
-                    {"id": "q2", "question": "What is the expected scale and performance requirements?"},
-                    {"id": "q3", "question": "What are the critical integration points in the system?"}
-                ],
-                'recommended_docs': ['cursorrules', 'prd', 'tech_stack']
-            })
+            # Use the appropriate function based on the LLM with a timeout
+            if using_gemini:
+                print("Using Gemini for follow-up questions")
+                client = get_llm_client(api_key, using_gemini)
+                response_text = get_follow_up_questions_gemini(client, data.get('problem', ''), data.get('solution', ''))
+            elif using_deepseek:
+                print("Using Deepseek for follow-up questions")
+                response_text = get_follow_up_questions_deepseek(data.get('problem', ''), data.get('solution', ''))
+            else:
+                print("Using Claude for follow-up questions")
+                client = get_llm_client(api_key, using_gemini)
+                response_text = get_follow_up_questions_claude(client, data.get('problem', ''), data.get('solution', ''))
+
+            print(f"Got response text: {response_text[:100]}...")
+
+            # Parse the response
+            try:
+                response_data = json.loads(response_text)
+                print("Successfully parsed response JSON")
+                
+                # Ensure exactly 3 questions
+                if len(response_data.get('questions', [])) > 3:
+                    print("Trimming questions to exactly 3")
+                    response_data['questions'] = response_data['questions'][:3]
+                elif len(response_data.get('questions', [])) < 3:
+                    print("Adding default questions to reach 3")
+                    default_questions = default_response['questions']
+                    response_data['questions'].extend(default_questions[len(response_data['questions']):])
+                
+                # Ensure recommended_docs exists and is not empty
+                if 'recommended_docs' not in response_data or not response_data['recommended_docs']:
+                    print("Adding default recommended_docs")
+                    response_data['recommended_docs'] = default_response['recommended_docs']
+                
+                return jsonify(response_data)
+            except json.JSONDecodeError as e:
+                print(f"Error parsing response: {str(e)}")
+                print(f"Response text: {response_text}")
+                # Return default response if parsing fails
+                return jsonify(default_response)
+
+        except Exception as e:
+            print(f"Error getting follow-up questions: {str(e)}")
+            print(f"Full error details: {e.__class__.__name__}: {str(e)}")
+            # Return default response on any error
+            return jsonify(default_response)
 
     except Exception as e:
-        print(f"Error getting follow-up questions: {str(e)}")
-        print(f"Full error details: {e.__class__.__name__}: {str(e)}")
-        return jsonify({'error': str(e)})
+        print(f"Error in get_follow_up: {str(e)}")
+        return jsonify(default_response)
 
 @app.route('/store-generation-data', methods=['POST'])
 def store_generation_data():
