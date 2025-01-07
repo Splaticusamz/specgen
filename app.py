@@ -316,6 +316,52 @@ Respond only with a JSON object in this exact format:
     response = client.generate_content(prompt)
     return response.text
 
+def get_follow_up_questions_deepseek(prompt, solution):
+    prompt = f"""You are a technical project analyst. For this project:
+
+Problem: {prompt}
+Solution: {solution}
+
+Your task:
+1. Generate exactly 3 highly specific technical questions that are crucial for implementation. These should be focused questions that directly impact development decisions.
+
+2. Recommend the most relevant documentation types from this list based on the project's specific needs:
+- cursorrules (Editor configurations)
+- prd (Project Requirements Document)
+- app_flow (User journeys and workflow)
+- tech_stack (Technology choices and dependencies)
+- frontend (Frontend architecture)
+- schema (Database schema)
+- api (API endpoints)
+- system_prompts (AI integration)
+- deployment (Infrastructure setup)
+- security (Security guidelines)
+- testing (Testing strategy)
+
+Respond only with a JSON object in this exact format:
+{{
+    "questions": [
+        {{"id": "q1", "question": "First specific question"}},
+        {{"id": "q2", "question": "Second specific question"}},
+        {{"id": "q3", "question": "Third specific question"}}
+    ],
+    "recommended_docs": ["doc1", "doc2", "doc3"]
+}}"""
+
+    try:
+        response = generate_with_deepseek(prompt)
+        return response
+    except Exception as e:
+        print(f"Error with Deepseek follow-up: {str(e)}")
+        return json.dumps({
+            "questions": [
+                {"id": "q1", "question": "What are the key technical constraints or requirements for this project?"},
+                {"id": "q2", "question": "What is the expected scale and performance requirements?"},
+                {"id": "q3", "question": "What are the critical integration points in the system?"}
+            ],
+            "recommended_docs": ["prd", "tech_stack", "api"]
+        })
+
 @app.route('/')
 def landing():
     return render_template('landing.html')
@@ -351,17 +397,20 @@ def get_follow_up():
     data = request.json
     api_key = data.get('api_key')
     using_gemini = data.get('using_gemini', False)
+    using_deepseek = data.get('using_deepseek', False)
     
-    if not api_key:
+    if not api_key and not using_gemini and not using_deepseek:
         return jsonify({'error': 'API Key is empty'})
 
     try:
-        client = get_llm_client(api_key, using_gemini)
-        
         # Use the appropriate function based on the LLM
         if using_gemini:
+            client = get_llm_client(api_key, using_gemini)
             response_text = get_follow_up_questions_gemini(client, data.get('problem', ''), data.get('solution', ''))
+        elif using_deepseek:
+            response_text = get_follow_up_questions_deepseek(data.get('problem', ''), data.get('solution', ''))
         else:
+            client = get_llm_client(api_key, using_gemini)
             response_text = get_follow_up_questions_claude(client, data.get('problem', ''), data.get('solution', ''))
 
         # Parse the response
@@ -371,6 +420,10 @@ def get_follow_up():
             # Ensure exactly 3 questions
             if len(response_data.get('questions', [])) > 3:
                 response_data['questions'] = response_data['questions'][:3]
+            
+            # Ensure recommended_docs exists
+            if 'recommended_docs' not in response_data:
+                response_data['recommended_docs'] = ['prd', 'tech_stack', 'api']
             
             return jsonify(response_data)
         except json.JSONDecodeError as e:
